@@ -1,1 +1,1 @@
-# UMCU-AIResearchSandbox-DockerBackend
+# UMCU-AIResearch-SandboxEnvironment
