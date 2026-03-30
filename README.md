@@ -1,53 +1,118 @@
-# UMCU-AIResearch-SandboxEnvironment
+# Docker Registry Sandbox Environment
 
-Minimal local sandbox environment for AI research workflows.
+## Description
 
-## Docker
+This repository provides a private Docker Registry behind NGINX with:
 
-If you use a local Docker registry on `localhost`, add `localhost` to Docker's insecure registries before starting the environment.
+- HTTPS termination using a self-signed OpenSSL certificate
+- Basic authentication using an `htpasswd` file
+- An NGINX reverse proxy in front of the Docker Registry
+- Persistent registry storage through a Docker volume
 
-### Windows
+The setup is intended for local development, testing, and internal sandbox use.
 
-Docker Desktop:
+## Components
 
-```json
-{
-  "insecure-registries": ["localhost"]
-}
+### OpenSSL
+
+OpenSSL is used to generate the TLS certificate and private key used by NGINX.
+
+Expected files:
+
+- `nginx/ssl/selfsigned.crt`
+- `nginx/ssl/selfsigned.key`
+
+Example:
+
+```bash
+mkdir -p nginx/ssl
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout nginx/ssl/selfsigned.key \
+  -out nginx/ssl/selfsigned.crt \
 ```
 
-### macOS
+### htpasswd
 
-Docker Desktop:
+`htpasswd` is used to generate the basic-auth credentials consumed by NGINX.
 
-```json
-{
-  "insecure-registries": ["localhost"]
-}
+Expected file:
+
+- `auth/nginx.htpasswd`
+
+Example:
+
+```bash
+mkdir -p nginx/auth
+docker run --rm --entrypoint htpasswd httpd -Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd
 ```
 
-### Linux
+### NGINX
 
-Edit `/etc/docker/daemon.json`:
+NGINX listens on ports `80` and `443`.
 
-```json
-{
-  "insecure-registries": ["localhost"]
-}
+- Port `80` redirects all traffic to HTTPS
+- Port `443` terminates TLS
+- Requests to `/v2/` are protected with basic auth
+- Authenticated requests are proxied to the internal Docker Registry service
+
+The active NGINX config is [nginx/conf.d/registry.conf](/home/max/Git/UMCU-AIResearch-SandboxEnvironment/nginx/conf.d/registry.conf).
+
+### Registry
+
+The backend service is the official Docker Registry image:
+
+- Container image: `registry:3.0.0`
+- Internal port: `5000`
+- Persistent storage: Docker volume `registry_data`
+
+The registry is not exposed directly to the host. Access goes through NGINX.
+
+## Configuration
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env
 ```
 
-Then restart Docker.
+Then set:
 
-## Creating a Self Signed Certificate
+- `SERVER_NAME`: the hostname you plan to use, for example `localhost`
 
-### Linux
-For Redhat:
-Go to commandline:
-```json
- sudo mkdir -p nginx/ssl
- sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
- -keyout nginx/ssl/selfsigned.key \
- -out nginx/ssl/selfsigned.crt
+## Start The Environment
 
- Fill in all the fields, if local for Common Name enter "localhost"
+Run:
+
+```bash
+docker compose up -d
 ```
+
+## How To Use The Registry
+
+Log in:
+
+```bash
+docker login https://localhost
+```
+
+If you used a self-signed certificate, Docker may reject it until you trust the certificate on the host.
+
+Tag an image:
+
+```bash
+docker tag alpine:latest localhost/alpine:latest
+```
+
+Push it:
+
+```bash
+docker push localhost/alpine:latest
+```
+
+Pull it:
+
+```bash
+docker pull localhost/alpine:latest
+```
+
+Replace `localhost` with your configured `SERVER_NAME` where applicable.

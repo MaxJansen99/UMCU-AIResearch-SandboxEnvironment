@@ -1,4 +1,17 @@
 services:
+  nginx:
+    image: nginx:1.29.7
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/auth:/etc/nginx/auth
+    networks:
+      - registry_network
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file: .env
+
   registry:
     image: registry:3.0.0
     volumes:
@@ -7,19 +20,8 @@ services:
       - registry_network
     expose:
       - "5000"
-
-  nginx:
-    image: nginx:1.29.7
-    volumes:
-      - ./nginx/conf.d/:/etc/nginx/conf.d/
-      - ./nginx/ssl/:/etc/nginx/ssl/
-    networks:
-      - registry_network
-    ports:
-      - "80:80"
-      - "443:443"
     depends_on:
-      - registry
+      - nginx
 
 volumes:
   registry_data:
