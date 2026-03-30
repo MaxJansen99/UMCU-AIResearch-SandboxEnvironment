@@ -37,3 +37,17 @@ Edit `/etc/docker/daemon.json`:
 ```
 
 Then restart Docker.
+
+## Creating a Self Signed Certificate
+
+### Linux
+For Redhat:
+Go to commandline:
+```json
+ sudo mkdir -p nginx/ssl
+ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+ -keyout nginx/ssl/selfsigned.key \
+ -out nginx/ssl/selfsigned.crt
+
+ Fill in all the fields, if local for Common Name enter "localhost"
+```

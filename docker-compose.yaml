@@ -12,10 +12,12 @@ services:
     image: nginx:1.29.7
     volumes:
       - ./nginx/conf.d/:/etc/nginx/conf.d/
+      - ./nginx/ssl/:/etc/nginx/ssl/
     networks:
       - registry_network
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - registry
 
