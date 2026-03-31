@@ -1,0 +1,2 @@
+pydicom>=3.0,<4.0
+idc-index
