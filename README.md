@@ -43,7 +43,7 @@ Example:
 
 ```bash
 mkdir -p nginx/auth
-docker run --rm --entrypoint htpasswd httpd -Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd
+sudo sh -c 'docker run --rm --entrypoint htpasswd httpd -Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd'
 ```
 
 ### NGINX
