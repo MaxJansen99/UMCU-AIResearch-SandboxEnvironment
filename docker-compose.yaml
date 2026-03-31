@@ -10,7 +10,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    env_file: .env
 
   registry:
     image: registry:3.0.0

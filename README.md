@@ -69,15 +69,13 @@ The registry is not exposed directly to the host. Access goes through NGINX.
 
 ## Configuration
 
-Copy the example environment file:
+Set the hostname directly in the NGINX config:
 
 ```bash
-cp .env.example .env
+edit nginx/conf.d/registry.conf
 ```
 
-Then set:
-
-- `SERVER_NAME`: the hostname you plan to use, for example `localhost`
+Update both `server_name` entries from `example.com` to the hostname you plan to use, for example `localhost`.
 
 ## Start The Environment
 
@@ -115,4 +113,4 @@ Pull it:
 docker pull localhost/alpine:latest
 ```
 
-Replace `localhost` with your configured `SERVER_NAME` where applicable.
+Replace `localhost` with the hostname configured in `nginx/conf.d/registry.conf` where applicable.
