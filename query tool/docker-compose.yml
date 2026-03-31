@@ -1,0 +1,35 @@
+services:
+  dicom-query:
+    build:
+      context: ./query
+      dockerfile: Dockerfile
+    container_name: dicom-query
+    ports:
+      - "8000:8000"
+    environment:
+      DICOM_ROOT: /data
+      QUERY_PORT: "8000"
+      QUERY_TLS: "true"
+      QUERY_HOST: "0.0.0.0"
+      QUERY_TLS_CERT: /certs/server.crt
+      QUERY_TLS_KEY: /certs/server.key
+    volumes:
+      - ./idc-data:/data:ro
+      - query_certs:/certs
+    networks:
+      - dicom-net
+
+  test-client:
+    image: curlimages/curl:latest
+    depends_on:
+      - dicom-query
+    networks:
+      - dicom-net
+    entrypoint: ["sh", "-c", "sleep 5 && curl -k https://dicom-query:8000/health && sleep 3600"]
+
+volumes:
+  query_certs:
+
+networks:
+  dicom-net:
+    driver: bridge
