@@ -16,6 +16,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl
       - ./nginx/auth:/etc/nginx/auth
+      - ./nginx/logs:/etc/nginx/logs
     networks:
       - registry_network
     depends_on:

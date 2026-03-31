@@ -83,6 +83,14 @@ Set the hostname directly in the NGINX config:
 edit nginx/conf.d/registry.conf
 ```
 
+## Logging
+
+Create the directory for nginx logs
+
+```bash
+mkdir -p nginx/logs
+```
+
 ## Start The Environment
 
 Run:
