@@ -31,6 +31,16 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -out nginx/ssl/selfsigned.crt \
 ```
 
+### Docker group
+
+Make sure your user is part of the `docker` group, so Docker commands can be run without `sudo`:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+This updates your group membership for the current shell. If that does not work, log out and back in again.
+
 ### htpasswd
 
 `htpasswd` is used to generate the basic-auth credentials consumed by NGINX.
@@ -43,19 +53,8 @@ Example:
 
 ```bash
 mkdir -p nginx/auth
-sudo sh -c 'docker run --rm --entrypoint htpasswd httpd -Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd'
+docker run --rm --entrypoint htpasswd httpd -Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd
 ```
-
-### NGINX
-
-NGINX listens on ports `80` and `443`.
-
-- Port `80` redirects all traffic to HTTPS
-- Port `443` terminates TLS
-- Requests to `/v2/` are protected with basic auth
-- Authenticated requests are proxied to the internal Docker Registry service
-
-The active NGINX config is [nginx/conf.d/registry.conf](/home/max/Git/UMCU-AIResearch-SandboxEnvironment/nginx/conf.d/registry.conf).
 
 ### Registry
 
@@ -67,6 +66,15 @@ The backend service is the official Docker Registry image:
 
 The registry is not exposed directly to the host. Access goes through NGINX.
 
+### NGINX
+
+NGINX listens on ports `80` and `443`.
+
+- Port `80` redirects all traffic to HTTPS
+- Port `443` terminates TLS
+- Requests to `/v2/` are protected with basic auth
+- Authenticated requests are proxied to the internal Docker Registry service
+
 ## Configuration
 
 Set the hostname directly in the NGINX config:
@@ -74,8 +82,6 @@ Set the hostname directly in the NGINX config:
 ```bash
 edit nginx/conf.d/registry.conf
 ```
-
-Update both `server_name` entries from `example.com` to the hostname you plan to use, for example `localhost`.
 
 ## Start The Environment
 
@@ -90,27 +96,23 @@ docker compose up -d
 Log in:
 
 ```bash
-docker login https://localhost
+docker login localhost
 ```
-
-If you used a self-signed certificate, Docker may reject it until you trust the certificate on the host.
 
 Tag an image:
 
 ```bash
-docker tag alpine:latest localhost/alpine:latest
+docker tag image:latest localhost/repository/image:latest
 ```
 
 Push it:
 
 ```bash
-docker push localhost/alpine:latest
+docker push localhost/repository/image:latest
 ```
 
 Pull it:
 
 ```bash
-docker pull localhost/alpine:latest
+docker pull localhost/repository/image:latest
 ```
-
-Replace `localhost` with the hostname configured in `nginx/conf.d/registry.conf` where applicable.

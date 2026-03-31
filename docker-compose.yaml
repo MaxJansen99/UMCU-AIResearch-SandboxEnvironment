@@ -1,4 +1,15 @@
 services:
+  registry:
+    image: registry:3.0.0
+    environment:
+      OTEL_TRACES_EXPORTER: none
+    volumes:
+      - registry_data:/var/lib/registry
+    networks:
+      - registry_network
+    expose:
+      - "5000"
+
   nginx:
     image: nginx:1.29.7
     volumes:
@@ -7,20 +18,11 @@ services:
       - ./nginx/auth:/etc/nginx/auth
     networks:
       - registry_network
+    depends_on:
+      - registry
     ports:
       - "80:80"
       - "443:443"
-
-  registry:
-    image: registry:3.0.0
-    volumes:
-      - registry_data:/var/lib/registry
-    networks:
-      - registry_network
-    expose:
-      - "5000"
-    depends_on:
-      - nginx
 
 volumes:
   registry_data:
