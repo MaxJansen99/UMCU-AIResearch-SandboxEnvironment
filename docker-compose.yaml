@@ -1,14 +1,19 @@
 services:
   registry:
     image: registry:3.0.0
-    environment:
-      OTEL_TRACES_EXPORTER: none
     volumes:
+      - ./registry/config.yaml:/etc/distribution/config.yml:ro
       - registry_data:/var/lib/registry
     networks:
       - registry_network
     expose:
       - "5000"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:5000/v2/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   nginx:
     image: nginx:1.29.7
@@ -16,14 +21,26 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl
       - ./nginx/auth:/etc/nginx/auth
-      - ./nginx/logs:/etc/nginx/logs
     networks:
       - registry_network
-    depends_on:
-      - registry
     ports:
       - "80:80"
       - "443:443"
+      # - "8000:8000"
+    depends_on:
+      registry:
+        condition: service_healthy
+
+  deployer:
+    build: ./deployer
+    volumes:
+      - ./deployer:/app
+    networks:
+      - registry_network
+    expose:
+      - "8000"
+    depends_on:
+      - registry
 
 volumes:
   registry_data:

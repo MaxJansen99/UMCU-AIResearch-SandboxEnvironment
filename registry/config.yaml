@@ -1,0 +1,22 @@
+version: 0.1
+
+log:
+  level: info
+
+storage:
+  filesystem:
+    rootdirectory: /var/lib/registry
+
+http:
+  addr: :5000
+  headers:
+    X-Content-Type-Options:
+      - nosniff
+
+notifications:
+  endpoints:
+    - name: deployer
+      url: http://deployer:8000/webhook
+      timeout: 1s
+      threshold: 5
+      backoff: 1s
