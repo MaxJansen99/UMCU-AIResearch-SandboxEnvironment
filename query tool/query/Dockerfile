@@ -6,19 +6,14 @@ ENV PYTHONUNBUFFERED=1
 ENV DICOM_ROOT=/data
 ENV QUERY_PORT=8000
 
-# openssl is needed to create self-signed cert on startup if no cert is provided
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssl && \
-    rm -rf /var/lib/apt/lists/*
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY query.py .
+COPY app ./app
+COPY frontend ./frontend
 COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
-VOLUME ["/certs"]
 EXPOSE 8000
 
 ENTRYPOINT ["./entrypoint.sh"]

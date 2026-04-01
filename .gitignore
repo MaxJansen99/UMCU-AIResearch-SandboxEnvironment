@@ -1,3 +1,5 @@
 .env
 nginx/ssl/
 nginx/auth/
+.idea/
+query tool/idc-data/

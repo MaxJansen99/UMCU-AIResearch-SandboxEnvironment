@@ -1,34 +1,35 @@
 services:
+  idc-fetch:
+    build:
+      context: ./idc-fetch
+      dockerfile: Dockerfile
+    volumes:
+      - ./idc-data:/data
+
   dicom-query:
     build:
       context: ./query
       dockerfile: Dockerfile
     container_name: dicom-query
+    depends_on:
+      idc-fetch:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
     environment:
       DICOM_ROOT: /data
       QUERY_PORT: "8000"
-      QUERY_TLS: "true"
+      QUERY_TLS: "false"
       QUERY_HOST: "0.0.0.0"
-      QUERY_TLS_CERT: /certs/server.crt
-      QUERY_TLS_KEY: /certs/server.key
     volumes:
       - ./idc-data:/data:ro
-      - query_certs:/certs
     networks:
       - dicom-net
-
-  test-client:
-    image: curlimages/curl:latest
-    depends_on:
-      - dicom-query
-    networks:
-      - dicom-net
-    entrypoint: ["sh", "-c", "sleep 5 && curl -k https://dicom-query:8000/health && sleep 3600"]
-
-volumes:
-  query_certs:
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   dicom-net:
