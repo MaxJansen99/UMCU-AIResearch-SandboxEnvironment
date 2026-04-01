@@ -19,7 +19,7 @@ git clone https://github.com/MaxJansen99/UMCU-AIResearch-SandboxEnvironment.git
 ```
 Then install the required packages from the `requirements.txt` file. Make sure to execute this command from inside the repository
 ```bash
-pip install -r query/requirements.txt
+pip install -r query\ tool/requirements.txt
 ```
 
 ## Launch
