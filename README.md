@@ -53,7 +53,7 @@ Example:
 
 ```bash
 mkdir -p nginx/auth
-docker run --rm --entrypoint htpasswd httpd -Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd
+docker run --rm --entrypoint htpasswd:2.4.66 httpd -Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd
 ```
 
 ### Registry
@@ -74,14 +74,6 @@ NGINX listens on ports `80` and `443`.
 - Port `443` terminates TLS
 - Requests to `/v2/` are protected with basic auth
 - Authenticated requests are proxied to the internal Docker Registry service
-
-## Configuration
-
-Set the hostname directly in the NGINX config:
-
-```bash
-edit nginx/conf.d/registry.conf
-```
 
 ## Logging
 
@@ -110,17 +102,17 @@ docker login localhost
 Tag an image:
 
 ```bash
-docker tag image:latest localhost/repository/image:latest
+docker tag image:latest localhost/image:latest
 ```
 
 Push it:
 
 ```bash
-docker push localhost/repository/image:latest
+docker push localhost/image:latest
 ```
 
 Pull it:
 
 ```bash
-docker pull localhost/repository/image:latest
+docker pull localhost/image:latest
 ```
