@@ -28,7 +28,7 @@ Example:
 mkdir -p nginx/ssl
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout nginx/ssl/selfsigned.key \
-  -out nginx/ssl/selfsigned.crt \
+  -out nginx/ssl/selfsigned.crt
 ```
 
 ### Docker group
@@ -53,7 +53,7 @@ Example:
 
 ```bash
 mkdir -p nginx/auth
-docker run --rm --entrypoint htpasswd:2.4.66 httpd -Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd
+docker run --rm --entrypoint htpasswd httpd:2.4.66-Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd
 ```
 
 ### Registry
