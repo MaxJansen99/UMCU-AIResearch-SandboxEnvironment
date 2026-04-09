@@ -3,7 +3,7 @@ services:
     image: registry:3.0.0
     volumes:
       - ./registry/config.yaml:/etc/distribution/config.yml:ro
-      # - registry_data:/var/lib/registry
+      - registry_data:/var/lib/registry
     networks:
       - registry_network
     expose:
@@ -26,15 +26,15 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      # - "8000:8000"
     depends_on:
       registry:
         condition: service_healthy
 
-  deployer:
-    build: ./deployer
+  docker-manager:
+    build: ./DockerManager
     volumes:
-      - ./deployer:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./DockerManager:/app
     networks:
       - registry_network
     expose:
@@ -42,8 +42,8 @@ services:
     depends_on:
       - registry
 
-# volumes:
-# registry_data:
+volumes:
+  registry_data:
 
 networks:
   registry_network:

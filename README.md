@@ -11,6 +11,26 @@ This repository provides a private Docker Registry behind NGINX with:
 
 The setup is intended for local development, testing, and internal sandbox use.
 
+## Prerequisites
+
+Before starting the environment, make sure the following are available:
+
+- Docker Engine
+- Docker Compose
+- OpenSSL
+- `htpasswd` from Apache Httpd
+- Access to ports `80` and `443` on the host machine
+
+### Docker group
+
+Make sure your user is part of the `docker` group, so Docker commands can be run without `sudo`:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+This updates your group membership for the current shell. If that does not work, log out and back in again.
+
 ## Components
 
 ### OpenSSL
@@ -31,17 +51,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -out nginx/ssl/selfsigned.crt
 ```
 
-### Docker group
-
-Make sure your user is part of the `docker` group, so Docker commands can be run without `sudo`:
-
-```bash
-sudo usermod -aG docker $USER
-```
-
-This updates your group membership for the current shell. If that does not work, log out and back in again.
-
-### htpasswd
+### Httpd
 
 `htpasswd` is used to generate the basic-auth credentials consumed by NGINX.
 
