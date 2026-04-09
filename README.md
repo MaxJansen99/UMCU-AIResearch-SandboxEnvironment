@@ -75,14 +75,6 @@ NGINX listens on ports `80` and `443`.
 - Requests to `/v2/` are protected with basic auth
 - Authenticated requests are proxied to the internal Docker Registry service
 
-## Logging
-
-Create the directory for nginx logs
-
-```bash
-mkdir -p nginx/logs
-```
-
 ## Start The Environment
 
 Run:
