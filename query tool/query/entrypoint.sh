@@ -1,4 +1,42 @@
 #!/usr/bin/env sh
 set -e
 
-exec uvicorn app.main:app --host "${QUERY_HOST:-0.0.0.0}" --port "${QUERY_PORT:-8000}"
+cert_dir="/certs"
+cert_file="${QUERY_TLS_CERT:-${cert_dir}/server.crt}"
+key_file="${QUERY_TLS_KEY:-${cert_dir}/server.key}"
+
+if [ "${QUERY_TLS:-false}" = "1" ] || [ "$(echo "${QUERY_TLS:-false}" | tr '[:upper:]' '[:lower:]')" = "true" ] || [ "$(echo "${QUERY_TLS:-false}" | tr '[:upper:]' '[:lower:]')" = "yes" ]; then
+  if [ ! -f "$cert_file" ] || [ ! -f "$key_file" ]; then
+    echo "Creating self-signed certificate at $cert_file / $key_file"
+    mkdir -p "$(dirname "$cert_file")"
+    mkdir -p "$(dirname "$key_file")"
+    openssl req -x509 -newkey rsa:2048 -days 365 -nodes \
+      -subj "/CN=${QUERY_HOST:-0.0.0.0}" \
+      -keyout "$key_file" \
+      -out "$cert_file"
+  fi
+fi
+
+args=""
+if [ -n "${QUERY_HOST}" ]; then
+  args="$args --host ${QUERY_HOST}"
+fi
+if [ -n "${QUERY_PORT}" ]; then
+  args="$args --port ${QUERY_PORT}"
+fi
+if [ -n "${QUERY_TLS}" ] && ( [ "${QUERY_TLS}" = "1" ] || [ "$(echo "${QUERY_TLS}" | tr '[:upper:]' '[:lower:]')" = "true" ] || [ "$(echo "${QUERY_TLS}" | tr '[:upper:]' '[:lower:]')" = "yes" ] ); then
+  args="$args --tls --tls-cert ${cert_file} --tls-key ${key_file}"
+fi
+
+if [ -n "${QUERY_TLS_CA}" ]; then
+  args="$args --tls-ca ${QUERY_TLS_CA}"
+fi
+
+if [ -n "${QUERY_PACS_URL}" ]; then
+  set -- "${QUERY_PACS_URL}" $args
+else
+  echo "QUERY_PACS_URL is required"
+  exit 1
+fi
+
+exec python query.py "$@"
