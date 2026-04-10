@@ -1,35 +1,78 @@
 services:
-  idc-fetch:
-    build:
-      context: ./idc-fetch
-      dockerfile: Dockerfile
+  orthanc:
+    image: jodogne/orthanc-plugins:latest
+    container_name: orthanc
+    ports:
+      - "8042:8042"
+    environment:
+      ORTHANC__REGISTERED_USERS: "orthanc:orthanc"
+      ORTHANC__AUTHENTICATION_ENABLED: "true"
     volumes:
-      - ./idc-data:/data
+      - orthanc-db:/var/lib/orthanc/db
+      - orthanc-config:/etc/orthanc
+      - ./idc-data:/data:ro
+    networks:
+      - dicom-net
 
   dicom-query:
     build:
       context: ./query
       dockerfile: Dockerfile
     container_name: dicom-query
-    depends_on:
-      idc-fetch:
-        condition: service_completed_successfully
     ports:
       - "8000:8000"
     environment:
-      DICOM_ROOT: /data
       QUERY_PORT: "8000"
-      QUERY_TLS: "false"
+      QUERY_TLS: "true"
       QUERY_HOST: "0.0.0.0"
+      QUERY_TLS_CERT: /certs/server.crt
+      QUERY_TLS_KEY: /certs/server.key
+      QUERY_PACS_URL: "http://orthanc:8042"
+      QUERY_PACS_USER: "orthanc"
+      QUERY_PACS_PASSWORD: "orthanc"
     volumes:
       - ./idc-data:/data:ro
+      - query_certs:/certs
     networks:
       - dicom-net
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    depends_on:
+      orthanc:
+        condition: service_started
+      dicom-importer:
+        condition: service_completed_successfully
+
+  dicom-importer:
+    image: python:3.11-slim
+    container_name: dicom-importer
+    working_dir: /app
+    environment:
+      PACS_URL: "http://orthanc:8042"
+      DATA_DIR: /data
+      PACS_USER: "orthanc"
+      PACS_PASSWORD: "orthanc"
+    volumes:
+      - ./idc-data:/data:ro
+      - ./query/import_helper.py:/app/import_helper.py
+    networks:
+      - dicom-net
+    depends_on:
+      - orthanc
+    entrypoint: ["sh", "-c", "pip install -q requests && python /app/import_helper.py"]
+    restart: "no"
+
+  test-client:
+    image: curlimages/curl:latest
+    container_name: test-client
+    depends_on:
+      - dicom-query
+    networks:
+      - dicom-net
+    entrypoint: ["sh", "-c", "sleep 10 && curl -k https://dicom-query:8000/health && sleep 3600"]
+
+volumes:
+  query_certs:
+  orthanc-db:
+  orthanc-config:
 
 networks:
   dicom-net:

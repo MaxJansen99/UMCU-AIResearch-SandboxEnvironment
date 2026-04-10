@@ -2,14 +2,15 @@ import argparse
 import json
 import os
 import ssl
+import threading
+import time
 from collections import Counter
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from time import perf_counter
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
-import pydicom
-from pydicom import dcmread
+import requests
 
 # Type aliases
 FilterOp = Callable[[Any, Any], bool]
@@ -50,29 +51,13 @@ OPERATORS: Dict[str, FilterOp] = {
     "not None": op_not_none,
 }
 
+blacklist_tags = {""}
+unnecissary_tags = {"SOPInstanceUID", "InstanceNumber", "CodingSchemeIdentificationSequence", "ContributingEquipmentSequence", "DimensionOrganizationSequence", 
+                              "DimensionIndexSequence", "NumberOfFrames", "ImagePositionPatient", "PixelSpacing", "TotalPixelMatrixOriginSequence", "OpticalPathSequence", 
+                              "OpticalPathSequence", "SpecimenDescriptionSequence", "SharedFunctionalGroupsSequence", "PerFrameFunctionalGroupsSequence"}
+depersanalization_tags = {"PatientIdentityRemoved", "DeidentificationMethod", "DeidentificationMethodCodeSequence", "ImageOrientationPatient"}
 
-# --------- Core helpers --------- #
-
-def safe_get(ds: pydicom.dataset.Dataset, key: str) -> Any:
-    """
-    Get a tag by keyword; return None if missing.
-    Example keys: 'Modality', 'PatientID', 'SliceThickness'.
-    """
-    return getattr(ds, key, None)
-
-
-def build_specific_tags(
-    filter_specs: List[FilterSpec],
-    extra_tags: Optional[Iterable[str]] = None,
-) -> List[str]:
-    """
-    Build list of tags to ask pydicom to read, based on filters + extra tags.
-    """
-    tags = {name for (name, _, _) in filter_specs if name}
-    if extra_tags:
-        tags.update(extra_tags)
-    return list(tags)
-
+dont_use_tags = blacklist_tags | unnecissary_tags | depersanalization_tags
 
 def _stats_key(value: Any) -> str:
     if value is None:
@@ -86,77 +71,107 @@ def summarize_stats(stats_counters: Dict[str, Counter]) -> StatsSummary:
     return {tag: dict(counter.most_common()) for tag, counter in stats_counters.items()}
 
 
-def file_matches(ds: pydicom.dataset.Dataset, filter_specs: List[FilterSpec]) -> bool:
-    """
-    Return True if dataset matches all filter conditions.
-    Missing tags are passed to operators as None.
-    """
-    for name, op_str, expected in filter_specs:
-        op = OPERATORS.get(op_str)
-        if op is None:
-            raise ValueError(f"Unsupported operator: {op_str}")
-        actual = safe_get(ds, name)
-        if not op(actual, expected):
-            return False
-    return True
-
-
 # --------- Main filtering function --------- #
-
-def filter_dicom_files(
-    root: str,
-    filter_specs: List[FilterSpec],
-    recursive: bool = True,
-    extra_tags_to_read: Optional[Iterable[str]] = None,
-    stats_tags_to_collect: Optional[Iterable[str]] = None,
-) -> Tuple[List[str], int, int, StatsSummary]:
+def collect_all_tag_stats(pacs_url: str, auth: Optional[Tuple[str, str]] = None) -> Tuple[StatsSummary, int, int]:
     """
-    Walk `root`, evaluate filters on DICOM headers, and return:
-      - list of matching file paths
-      - total number of files visited (all extensions)
-      - number of files successfully read as DICOM
-      - optional stats distributions for matched files
+    Collect stats on all DICOM tags from PACS.
+    Returns stats summary, total series, total instances.
     """
-    stats_tags = list(dict.fromkeys(stats_tags_to_collect or []))
-    specific_tags = build_specific_tags(filter_specs, [*(extra_tags_to_read or []), *stats_tags])
+    stats_counters: Dict[str, Counter] = {}
+    total_series = 0
+    total_instances = 0
 
-    matched: List[str] = []
-    total_files = 0
-    dicom_files = 0
-    stats_counters: Dict[str, Counter] = {tag: Counter() for tag in stats_tags}
+    # Get all series IDs (no filters)
+    query_body = {"Level": "Series", "Query": {}}
+    resp = requests.post(
+        f"{pacs_url.rstrip('/')}/tools/find",
+        auth=auth,
+        json=query_body,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    series_ids = resp.json() if isinstance(resp.json(), list) else []
 
-    def paths() -> Iterable[str]:
-        if recursive:
-            for dirpath, _, filenames in os.walk(root):
-                for fname in filenames:
-                    yield os.path.join(dirpath, fname)
-        else:
-            for fname in os.listdir(root):
-                full = os.path.join(root, fname)
-                if os.path.isfile(full):
-                    yield full
-
-    for path in paths():
-        total_files += 1
+    for series_id in series_ids:
+        total_series += 1
         try:
-            ds = dcmread(
-                path,
-                stop_before_pixels=True,
-                specific_tags=specific_tags or None,
+            # Fetch series metadata
+            series_resp = requests.get(
+                f"{pacs_url.rstrip('/')}/series/{series_id}", auth=auth, timeout=30
             )
-            dicom_files += 1
+            if series_resp.status_code != 200:
+                print(f"Warning: Failed to fetch metadata for series {series_id}")
+                continue
+            series_meta = series_resp.json()
+
+            # Collect series-level tags
+            for tag, value in series_meta.get("MainDicomTags", {}).items():
+                if tag not in stats_counters:
+                    stats_counters[tag] = Counter()
+                stats_counters[tag][_stats_key(value)] += 1
+
+            # Get instances in series
+            instances_resp = requests.get(
+                f"{pacs_url.rstrip('/')}/series/{series_id}/instances", auth=auth, timeout=30
+            )
+            if instances_resp.status_code == 200:
+                instances = instances_resp.json()
+                for instance_id in instances:
+                    if isinstance(instance_id, dict) and "ID" in instance_id:
+                        instance_id = instance_id["ID"]
+                    else:                        
+                        print(f"Warning: Unexpected instance format in series {series_id}: {instance_id}")
+                        continue
+                    total_instances += 1
+                    # Fetch instance tags
+                    tags_resp = requests.get(
+                        f"{pacs_url.rstrip('/')}/instances/{instance_id}/tags", auth=auth, timeout=30
+                    )
+
+                    if tags_resp.status_code == 200:
+                        instance_tags = tags_resp.json()
+                        # Normalize Orthanc tag structure (e.g. {'0008,0060': {...}}) to Name->Value mapping
+                        normalized_instance_tags = normalize_orthanc_dicom_tags(instance_tags)
+                        # Collect instance-level stats
+                        for tag, value in normalized_instance_tags.items():
+                            if tag in dont_use_tags:
+                                continue
+                            if tag not in stats_counters:
+                                stats_counters[tag] = Counter()
+                            stats_counters[tag][_stats_key(value)] += 1
         except Exception:
             continue
 
-        try:
-            if file_matches(ds, filter_specs):
-                matched.append(path)
-                for tag in stats_tags:
-                    stats_counters[tag][_stats_key(safe_get(ds, tag))] += 1
-        except Exception:
-            continue
+    return summarize_stats(stats_counters), total_series, total_instances
 
-    return matched, total_files, dicom_files, summarize_stats(stats_counters)
+
+def collect_and_save_stats(pacs_url: str, auth: Optional[Tuple[str, str]], stats_file: str = "stats.json"):
+    """
+    Collect all tag stats from PACS and save to a JSON file.
+    """
+    print("Collecting DICOM header stats from PACS...")
+    start_time = perf_counter()
+    stats, total_series, total_instances = collect_all_tag_stats(pacs_url, auth)
+    elapsed = perf_counter() - start_time
+    data = {
+        "stats": stats,
+        "total_series": total_series,
+        "total_instances": total_instances,
+        "elapsed_seconds": elapsed,
+        "timestamp": time.time(),
+    }
+    with open(stats_file, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"Stats collected and saved to {stats_file} in {elapsed:.2f}s")
+
+
+def periodic_stats_collection(pacs_url: str, auth: Optional[Tuple[str, str]], interval_hours: int = 24):
+    """
+    Run stats collection periodically from PACS.
+    """
+    while True:
+        time.sleep(interval_hours * 3600)
+        collect_and_save_stats(pacs_url, auth)
 
 
 def normalize_filter_specs(raw_filters: Iterable[Iterable[Any]]) -> List[FilterSpec]:
@@ -183,7 +198,12 @@ def normalize_filter_specs(raw_filters: Iterable[Iterable[Any]]) -> List[FilterS
     return normalized
 
 
-def run_query_request(payload: Dict[str, Any], default_root: str) -> Dict[str, Any]:
+def run_query_request(
+    payload: Dict[str, Any],
+    pacs_url: str,
+    pacs_user: Optional[str] = None,
+    pacs_password: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Execute a single query payload and return a JSON-serializable response.
     """
@@ -193,43 +213,223 @@ def run_query_request(payload: Dict[str, Any], default_root: str) -> Dict[str, A
 
     filter_specs = normalize_filter_specs(raw_filters)
 
-    root = payload.get("root", default_root)
-    if not isinstance(root, str) or not root:
-        raise ValueError("'root' must be a non-empty string.")
-
-    recursive = payload.get("recursive", True)
-    if not isinstance(recursive, bool):
-        raise ValueError("'recursive' must be a boolean.")
-
     stats_tags = payload.get("stats_tags", [])
     if not isinstance(stats_tags, list) or not all(isinstance(tag, str) for tag in stats_tags):
         raise ValueError("'stats_tags' must be a list of strings.")
 
-    extra_tags = payload.get("extra_tags", [])
-    if not isinstance(extra_tags, list) or not all(isinstance(tag, str) for tag in extra_tags):
-        raise ValueError("'extra_tags' must be a list of strings.")
+    auth = None
+    if pacs_user and pacs_password:
+        auth = (pacs_user, pacs_password)
 
     start_time = perf_counter()
-    matches, total_files, dicom_files, stats = filter_dicom_files(
-        root=root,
+    response = pacs_query(
+        pacs_url=pacs_url,
+        auth=auth,
         filter_specs=filter_specs,
-        recursive=recursive,
-        extra_tags_to_read=extra_tags,
-        stats_tags_to_collect=stats_tags,
+        stats_tags=stats_tags,
     )
-    elapsed_seconds = perf_counter() - start_time
+    response["elapsed_seconds"] = perf_counter() - start_time
+    return response
+
+
+def normalize_orthanc_dicom_tags(dicom_tags: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert Orthanc per-tag format into a simple Name->Value mapping, recursively."""
+    if not isinstance(dicom_tags, dict):
+        return {}
+
+    normalized: Dict[str, Any] = {}
+    for tag_key, entry in dicom_tags.items():
+        if isinstance(entry, dict):
+            name = entry.get("Name")
+            value = entry.get("Value")
+            if name is not None:
+                normalized_value = normalize_orthanc_value(value)
+                normalized[name] = normalized_value
+            else:
+                # If no Name, treat as nested dict and normalize recursively
+                normalized[tag_key] = normalize_orthanc_dicom_tags(entry)
+        else:
+            normalized[tag_key] = entry
+
+    return normalized
+
+
+def normalize_orthanc_value(value: Any) -> Any:
+    """Recursively normalize nested Orthanc values (dicts or lists of dicts)."""
+    if isinstance(value, dict):
+        return normalize_orthanc_dicom_tags(value)
+    elif isinstance(value, list):
+        return [normalize_orthanc_value(item) for item in value]
+    else:
+        return value
+
+
+def pacs_safe_get(meta: Dict[str, Any], key: str) -> Any:
+    # Orthanc metadata is in MainDicomTags for most standard tags.
+    tags = meta.get("MainDicomTags", {})
+    if key in tags:
+        return tags[key]
+    # fallback for top-level items
+    return meta.get(key)
+
+
+def pacs_safe_get_full(meta: Dict[str, Any], key: str) -> Any:
+    """
+    Get tag from full DICOM metadata, including tags not in MainDicomTags.
+    This requires fetching the full series metadata.
+    """
+    # First check MainDicomTags
+    tags = meta.get("MainDicomTags", {})
+    if key in tags:
+        return tags[key]
+
+    # Check if we have full DICOM tags (from /series/{id}/tags endpoint or normalized map)
+    dicom_tags = meta.get("DicomTags", {})
+    if isinstance(dicom_tags, dict):
+        # If already normalized to Name->Value map
+        if key in dicom_tags:
+            return dicom_tags[key]
+
+        # If in Orthanc raw format tag->dict map, resolve by Name field
+        for entry in dicom_tags.values():
+            if isinstance(entry, dict) and entry.get("Name") == key:
+                return entry.get("Value")
+
+    # fallback for top-level items
+    return meta.get(key)
+
+
+def pacs_item_matches(meta: Dict[str, Any], filter_specs: List[FilterSpec]) -> bool:
+    for name, op_str, expected in filter_specs:
+        op = OPERATORS.get(op_str)
+        if op is None:
+            raise ValueError(f"Unsupported operator: {op_str}")
+        actual = pacs_safe_get_full(meta, name)
+        if not op(actual, expected):
+            return False
+    return True
+
+
+def pacs_query(
+    pacs_url: str,
+    auth: Optional[Tuple[str, str]],
+    filter_specs: List[FilterSpec],
+    stats_tags: List[str],
+) -> Dict[str, Any]:
+    # Get total files/instances in PACS for diagnostics.
+    total_instances = 0
+    try:
+        stats_resp = requests.get(
+            f"{pacs_url.rstrip('/')}/statistics", auth=auth, timeout=30
+        )
+        if stats_resp.status_code == 200:
+            total_instances = stats_resp.json().get("CountInstances", 0)
+    except Exception:
+        pass
+
+    filter_specs = [spec for spec in filter_specs if spec[0] not in dont_use_tags]
+    stats_tags = [tag for tag in stats_tags if tag not in dont_use_tags]
+
+    # Build an Orthanc find query using equality filters if available.
+    query_body: Dict[str, Any] = {"Level": "Series", "Query": {}}
+
+    for name, op_str, expected in filter_specs:
+        if op_str != "==":
+            # Non-equality is not pushed to PACS; we'll filter after metadata pull.
+            continue
+        query_body["Query"][name] = expected
+
+    resp = requests.post(
+        f"{pacs_url.rstrip('/')}/tools/find",
+        auth=auth,
+        json=query_body,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    ids = resp.json() if isinstance(resp.json(), list) else []
+
+    matched: List[Dict[str, Any]] = []
+    stats_counters: Dict[str, Counter] = {tag: Counter() for tag in stats_tags}
+
+    for resource_id in ids:
+        # Fetch series metadata; fallback to instance if needed.
+        series = requests.get(
+            f"{pacs_url.rstrip('/')}/series/{resource_id}", auth=auth, timeout=30
+        )
+        if series.status_code != 200:
+            continue
+        meta = series.json()
+
+        if not pacs_item_matches(meta, filter_specs):
+            continue
+
+        matched.append({"id": resource_id, "meta": meta})
+
+        # Collect series-level stats
+        for tag in stats_tags:
+            value = pacs_safe_get(meta, tag)
+            if value is not None:
+                stats_counters[tag][_stats_key(value)] += 1
+
+        # Collect stats from instances in this series, with instance-level filtering
+        try:
+            instances_resp = requests.get(
+                f"{pacs_url.rstrip('/')}/series/{resource_id}/instances",
+                auth=auth,
+                timeout=30,
+            )
+            if instances_resp.status_code == 200:
+                instances = instances_resp.json()
+                print(f"Series {resource_id} has {len(instances)} instances")
+                print(instances[0] if instances else "No instances found")
+                for instance in instances:
+                    if isinstance(instance, dict) and "ID" in instance:
+                        instance_id = instance["ID"]
+                    else:
+                        print(f"Warning: Unexpected instance format: {instance}")
+                        continue
+                    print(f"Processing instance {instance_id}")
+                    # Fetch instance tags
+                    instance_resp = requests.get(
+                        f"{pacs_url.rstrip('/')}/instances/{instance_id}/tags",
+                        auth=auth,
+                        timeout=30,
+                    )
+                    print(f"Instance tags fetch status: {instance_resp.status_code}")
+                    if instance_resp.status_code == 200:
+                        instance_tags = instance_resp.json()
+                        # Normalize Orthanc tag structure (e.g. {'0008,0060': {...}}) to Name->Value mapping
+                        normalized_instance_tags = normalize_orthanc_dicom_tags(instance_tags)
+                        # Check filters on instance level
+                        print(f"Instance {instance_id} tags: {normalized_instance_tags}")
+                        instance_meta = {
+                            "MainDicomTags": meta.get('MainDicomTags', {}),
+                            "DicomTags": normalized_instance_tags,
+                        }
+                        if not pacs_item_matches(instance_meta, filter_specs):
+                            print(f"Instance {instance_id} does not match filters, skipping stats collection")
+                            continue
+                        # Collect instance-level stats
+                        for tag in stats_tags:
+                            value = pacs_safe_get_full(instance_meta, tag)
+                            print(f"Value for tag {tag} in instance {instance_id}: {value}")
+                            if value is not None:
+                                print(f"Collecting {tag}: {value}")
+                                stats_counters[tag][_stats_key(value)] += 1
+        except Exception:
+            # If instance fetching fails, continue with series-level stats only
+            pass
 
     return {
         "ok": True,
-        "root": root,
-        "recursive": recursive,
+        "root": pacs_url,
+        "pacs": True,
         "filters": filter_specs,
-        "total_files": total_files,
-        "dicom_files": dicom_files,
-        "match_count": len(matches),
-        "matches": matches,
-        "stats": stats,
-        "elapsed_seconds": elapsed_seconds,
+        "total_instances_in_pacs": total_instances,
+        "total_series_found": len(ids),
+        "match_count": len(matched),
+        "matches": [match["id"] for match in matched],  # Just IDs, not full metadata
+        "stats": summarize_stats(stats_counters),
     }
 
 
@@ -252,7 +452,7 @@ def create_ssl_context(certfile: str, keyfile: str, ca_file: Optional[str] = Non
     return context
 
 
-def build_handler(default_root: str):
+def build_handler(pacs_url: str, pacs_user: Optional[str], pacs_password: Optional[str]):
     class QueryHTTPRequestHandler(BaseHTTPRequestHandler):
         def _send_json(self, payload: Dict[str, Any], status: int = HTTPStatus.OK) -> None:
             response = json.dumps(payload).encode("utf-8")
@@ -268,7 +468,7 @@ def build_handler(default_root: str):
                     {
                         "ok": True,
                         "service": "dicom-query",
-                        "default_root": default_root,
+                        "pacs_url": pacs_url,
                     }
                 )
                 return
@@ -301,7 +501,12 @@ def build_handler(default_root: str):
                 payload = json.loads(raw_body.decode("utf-8") or "{}")
                 if not isinstance(payload, dict):
                     raise ValueError("Request body must be a JSON object.")
-                response = run_query_request(payload, default_root=default_root)
+                response = run_query_request(
+                    payload,
+                    pacs_url=pacs_url,
+                    pacs_user=pacs_user,
+                    pacs_password=pacs_password,
+                )
                 self._send_json(response, status=HTTPStatus.OK)
             except Exception as exc:
                 self._send_json(
@@ -319,10 +524,8 @@ def build_handler(default_root: str):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the DICOM query HTTP service.")
     parser.add_argument(
-        "root",
-        nargs="?",
-        default=None,
-        help="Path to the DICOM root directory. Defaults to DICOM_ROOT or idc-data/.",
+        "pacs_url",
+        help="PACS base URL (e.g. http://orthanc:8042).",
     )
     parser.add_argument(
         "--host",
@@ -360,7 +563,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def serve_http(
-    default_root: str,
+    pacs_url: str,
+    pacs_user: Optional[str],
+    pacs_password: Optional[str],
     host: str,
     port: int,
     tls: bool = False,
@@ -368,7 +573,7 @@ def serve_http(
     tls_key: Optional[str] = None,
     tls_ca: Optional[str] = None,
 ) -> None:
-    server = ThreadingHTTPServer((host, port), build_handler(default_root))
+    server = ThreadingHTTPServer((host, port), build_handler(pacs_url, pacs_user, pacs_password))
 
     protocol = "http"
     if tls:
@@ -377,15 +582,28 @@ def serve_http(
         protocol = "https"
 
     print(f"DICOM query service listening on {protocol}://{host}:{port}")
-    print(f"Default root: {default_root}")
+    print(f"PACS URL: {pacs_url}")
     server.serve_forever()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    dicom_root = args.root or os.environ.get("DICOM_ROOT", "idc-data/")
+    pacs_url = args.pacs_url
+    pacs_user = os.environ.get("QUERY_PACS_USER", "orthanc")
+    pacs_password = os.environ.get("QUERY_PACS_PASSWORD", "orthanc")
+    auth = (pacs_user, pacs_password) if pacs_user and pacs_password else None
+    
+    # Collect initial stats
+    collect_and_save_stats(pacs_url, auth)
+    
+    # Start periodic stats collection in a background thread
+    stats_thread = threading.Thread(target=periodic_stats_collection, args=(pacs_url, auth), daemon=True)
+    stats_thread.start()
+    
     serve_http(
-        default_root=dicom_root,
+        pacs_url=pacs_url,
+        pacs_user=pacs_user,
+        pacs_password=pacs_password,
         host=args.host,
         port=args.port,
         tls=args.tls,
