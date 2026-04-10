@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from src.DockerImage import DockerImage
+from src.DockerManager import DockerManager
 
 app = FastAPI()
 
@@ -23,5 +24,8 @@ async def webhook(request: Request):
         )
 
         print(dockerImage)
+        dockerManager = DockerManager()
+
+        dockerManager.docker_run(f"{dockerImage.repository}:{dockerImage.tag}")
 
     return {"status": 200}
