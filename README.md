@@ -63,7 +63,7 @@ Example:
 
 ```bash
 mkdir -p nginx/auth
-docker run --rm --entrypoint htpasswd httpd:2.4.66-Bbn <USERNAME> <PASSWORD> > nginx/auth/nginx.htpasswd
+docker run --rm --entrypoint htpasswd httpd:2.4.66 -bbn <username> <password> > nginx/auth/nginx.htpasswd
 ```
 
 ### Registry
@@ -90,7 +90,7 @@ NGINX listens on ports `80` and `443`.
 Run:
 
 ```bash
-docker compose up -d
+docker compose up --build -d
 ```
 
 ## How To Use The Registry

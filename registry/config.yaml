@@ -16,7 +16,7 @@ http:
 notifications:
   endpoints:
     - name: deployer
-      url: http://deployer:8000/webhook
+      url: http://docker-manager:8000/webhook
       timeout: 1s
       threshold: 5
       backoff: 1s
