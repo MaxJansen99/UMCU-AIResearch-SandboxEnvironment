@@ -23,7 +23,7 @@ services:
       - "8000:8000"
     environment:
       QUERY_PORT: "8000"
-      QUERY_TLS: "true"
+      QUERY_TLS: "false"
       QUERY_HOST: "0.0.0.0"
       QUERY_TLS_CERT: /certs/server.crt
       QUERY_TLS_KEY: /certs/server.key
@@ -67,7 +67,7 @@ services:
       - dicom-query
     networks:
       - dicom-net
-    entrypoint: ["sh", "-c", "sleep 10 && curl -k https://dicom-query:8000/health && sleep 3600"]
+    entrypoint: ["sh", "-c", "sleep 10 && curl http://dicom-query:8000/health && sleep 3600"]
 
 volumes:
   query_certs:

@@ -3,3 +3,5 @@ nginx/ssl/
 nginx/auth/
 .idea/
 query tool/idc-data/
+query tool/query/frontend/node_modules/
+query tool/query/frontend/dist/

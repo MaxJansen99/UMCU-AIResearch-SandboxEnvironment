@@ -39,4 +39,4 @@ else
   exit 1
 fi
 
-exec python query.py "$@"
+exec python -m app.main "$@"
