@@ -63,7 +63,7 @@ Example:
 
 ```bash
 mkdir -p nginx/auth
-docker run --rm --entrypoint htpasswd httpd:2.4.66 -bbn <username> <password> > nginx/auth/nginx.htpasswd
+docker run --rm --entrypoint htpasswd httpd:2.4.66 -Bbn <username> <password> > nginx/auth/nginx.htpasswd
 ```
 
 ### Registry

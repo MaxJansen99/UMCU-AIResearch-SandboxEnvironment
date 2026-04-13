@@ -22,10 +22,9 @@ async def webhook(request: Request):
             event["target"]["repository"],
             event["target"]["tag"],
         )
-
         print(dockerImage)
+        
         dockerManager = DockerManager()
-
         dockerManager.docker_run(f"{dockerImage.repository}:{dockerImage.tag}")
 
     return {"status": 200}
