@@ -1,15 +1,16 @@
-# Docker Registry Sandbox Environment
+# UMCU AI Research Sandbox Environment
 
 ## Description
 
-This repository provides a private Docker Registry behind NGINX with:
+This repository provides a private Docker Registry infrastructure with secure access controls. The environment consists of:
 
-- HTTPS termination using a self-signed OpenSSL certificate
-- Basic authentication using an `htpasswd` file
-- An NGINX reverse proxy in front of the Docker Registry
-- Persistent registry storage through a Docker volume
+- **Docker Registry**: A containerized private registry for storing and managing Docker images
+- **NGINX Reverse Proxy**: Acts as the front-facing server with HTTPS termination and basic authentication
+- **SSL/TLS Support**: Configured for encrypted communication
+- **Basic Authentication**: Protects registry access using htpasswd credentials
+- **Persistent Storage**: Registry data persists across container restarts
 
-The setup is intended for local development, testing, and internal sandbox use.
+The setup is designed for internal use within the UMCU AI Research project and can be deployed for development, testing, and production sandbox environments.
 
 ## Prerequisites
 
@@ -31,73 +32,114 @@ sudo usermod -aG docker $USER
 
 This updates your group membership for the current shell. If that does not work, log out and back in again.
 
-## Components
+## Project Structure
 
-### OpenSSL
-
-OpenSSL is used to generate the TLS certificate and private key used by NGINX.
-
-Expected files:
-
-- `nginx/ssl/selfsigned.crt`
-- `nginx/ssl/selfsigned.key`
-
-Example:
-
-```bash
-mkdir -p nginx/ssl
-docker run --rm \
-  -p 80:80 \
-  -v "$(pwd)/nginx/ssl:/etc/letsencrypt" \
-  --env-file .env \
-  certbot/certbot:v5.5.0 certonly \
-  --standalone \
-  --agree-tos \
-  --non-interactive \
-  --email EMAIL_ADDRESS \
-  -d DOMAIN_NAME
+```
+├── docker-compose.yaml          # Main Docker Compose configuration
+├── .env                         # Environment variables (not committed)
+├── .env.example                 # Example environment variables
+├── README.md                    # This file
+├── nginx/                       # NGINX configuration
+│   ├── conf.d/                 # NGINX server blocks
+│   ├── auth/                   # Basic authentication credentials
+│   └── ssl/                    # SSL/TLS certificates and keys
+└── registry/                    # Docker Registry configuration
+    └── config.yaml             # Registry configuration file
 ```
 
-### Httpd
+## Components
 
-`htpasswd` is used to generate the basic-auth credentials consumed by NGINX.
+### Docker Registry
 
-Expected file:
+The backend service uses the official Docker Distribution (Registry) image.
 
-- `auth/nginx.htpasswd`
+**Configuration:**
+- Container image: `registry:3.0.0`
+- Internal port: `5000` (not exposed to host)
+- Configuration file: `registry/config.yaml`
+- Persistent storage: Docker volume `registry_data`
 
-Example:
+The registry is not directly accessible from the host. All access must go through the NGINX reverse proxy.
+
+### NGINX Reverse Proxy
+
+NGINX serves as the entry point and reverse proxy for the registry.
+
+**Configuration:**
+- Container image: `nginx:1.29.7`
+- Exposed ports: `80` (HTTP), `443` (HTTPS)
+- Configuration: `nginx/conf.d/registry.conf`
+- Authentication: `nginx/auth/registry.htpasswd`
+- SSL certificates: `nginx/ssl/` (Certbot-managed)
+
+**Features:**
+- Port `80` redirects all traffic to HTTPS (`443`)
+- TLS termination on port `443`
+- `/v2/` API endpoints protected with basic authentication
+- Non-authenticated requests proxied to the Docker Registry
+
+### SSL/TLS Certificates
+
+Certificates are managed using Certbot and stored in `nginx/ssl/`.
+
+**Structure:**
+- `live/`: Current active certificates
+- `archive/`: Historical certificate versions
+- `renewal/`: Renewal configuration
+- `renewal-hooks/`: Scripts that run during renewal (pre, post, deploy)
+
+## Setup
+
+### 1. Environment Variables
+
+Copy the example environment file and configure it:
+
+```bash
+cp .env.example .env
+# Edit .env with your specific settings
+```
+
+### 2. SSL/TLS Certificates
+
+Certificates are managed using Certbot and should be placed in `nginx/ssl/`.
+
+Ensure the directory structure exists:
+
+```bash
+mkdir -p nginx/ssl/{live,archive,renewal,renewal-hooks/{pre,post,deploy}}
+```
+
+Place your certificate files in `nginx/ssl/live/` according to your domain configuration.
+
+### 3. Authentication Credentials
+
+Create basic authentication credentials using htpasswd:
 
 ```bash
 mkdir -p nginx/auth
-docker run --rm --entrypoint htpasswd httpd:2.4.66 -Bbn USERNAME PASSWORD > nginx/auth/nginx.htpasswd
+docker run --rm --entrypoint htpasswd httpd:2.4.66 -Bbn USERNAME PASSWORD > nginx/auth/registry.htpasswd
 ```
 
-### Registry
+Replace `USERNAME` and `PASSWORD` with your desired credentials.
 
-The backend service is the official Docker Registry image:
+### 4. Start The Environment
 
-- Container image: `registry:3.0.0`
-- Internal port: `5000`
-- Persistent storage: Docker volume `registry_data`
-
-The registry is not exposed directly to the host. Access goes through NGINX.
-
-### NGINX
-
-NGINX listens on ports `80` and `443`.
-
-- Port `80` redirects all traffic to HTTPS
-- Port `443` terminates TLS
-- Requests to `/v2/` are protected with basic auth
-- Authenticated requests are proxied to the internal Docker Registry service
-
-## Start The Environment
-
-Run:
+Start all services with Docker Compose:
 
 ```bash
-docker compose up --build -d
+docker compose up -d
+```
+
+To view logs:
+
+```bash
+docker compose logs -f
+```
+
+To stop the environment:
+
+```bash
+docker compose down
 ```
 
 ## How To Use The Registry

@@ -8,20 +8,18 @@ services:
       - registry_network
     expose:
       - "5000"
-    env_file: ".env"
 
   nginx:
     image: nginx:1.29.7
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl
       - ./nginx/auth:/etc/nginx/auth
+      - ./nginx/conf.d:/etc/nginx/conf.d
     networks:
       - registry_network
     ports:
       - "80:80"
       - "443:443"
-    env_file: ".env"
     depends_on:
       - registry
 
@@ -34,8 +32,8 @@ services:
       - registry_network
     expose:
       - "8000"
-    env_file: ".env"
     depends_on:
+      - registry
       - nginx
 
 volumes:
