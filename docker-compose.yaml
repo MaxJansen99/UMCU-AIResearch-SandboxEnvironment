@@ -8,12 +8,7 @@ services:
       - registry_network
     expose:
       - "5000"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:5000/v2/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
+    env_file: ".env"
 
   nginx:
     image: nginx:1.29.7
@@ -26,9 +21,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    env_file: ".env"
     depends_on:
-      registry:
-        condition: service_healthy
+      - registry
 
   docker-manager:
     build: ./DockerManager
@@ -39,8 +34,9 @@ services:
       - registry_network
     expose:
       - "8000"
+    env_file: ".env"
     depends_on:
-      - registry
+      - nginx
 
 volumes:
   registry_data:

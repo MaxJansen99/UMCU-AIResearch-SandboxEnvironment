@@ -46,9 +46,16 @@ Example:
 
 ```bash
 mkdir -p nginx/ssl
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout nginx/ssl/selfsigned.key \
-  -out nginx/ssl/selfsigned.crt
+docker run --rm \
+  -p 80:80 \
+  -v "$(pwd)/nginx/ssl:/etc/letsencrypt" \
+  --env-file .env \
+  certbot/certbot:v5.5.0 certonly \
+  --standalone \
+  --agree-tos \
+  --non-interactive \
+  --email EMAIL_ADDRESS \
+  -d DOMAIN_NAME
 ```
 
 ### Httpd
@@ -63,7 +70,7 @@ Example:
 
 ```bash
 mkdir -p nginx/auth
-docker run --rm --entrypoint htpasswd httpd:2.4.66 -Bbn <username> <password> > nginx/auth/nginx.htpasswd
+docker run --rm --entrypoint htpasswd httpd:2.4.66 -Bbn USERNAME PASSWORD > nginx/auth/nginx.htpasswd
 ```
 
 ### Registry
