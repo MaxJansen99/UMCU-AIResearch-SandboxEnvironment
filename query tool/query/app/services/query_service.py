@@ -54,6 +54,7 @@ class QueryService:
 
         for series_id in series_ids:
             meta = self.orthanc.get_series(series_id)
+            meta = self._with_first_instance_tags(meta)
             if not self._matches(meta, usable_filters):
                 continue
 
@@ -162,14 +163,7 @@ class QueryService:
 
     def _series_summary(self, series_id: str, meta: dict[str, Any]) -> dict[str, Any]:
         tags = meta.get("MainDicomTags", {})
-        instance_tags: dict[str, Any] = {}
-        instance_ids = meta.get("Instances", [])
-        if instance_ids:
-            try:
-                instance_tags = normalize_orthanc_dicom_tags(self.orthanc.get_instance_tags(instance_ids[0]))
-            except Exception:
-                instance_tags = {}
-
+        instance_tags = meta.get("DicomTags", {})
         return {
             "id": series_id,
             "study_instance_uid": tags.get("StudyInstanceUID", instance_tags.get("StudyInstanceUID", "")),
@@ -181,3 +175,19 @@ class QueryService:
             "body_part_examined": tags.get("BodyPartExamined", instance_tags.get("BodyPartExamined", "")),
             "instances": len(meta.get("Instances", [])),
         }
+
+    def _with_first_instance_tags(self, meta: dict[str, Any]) -> dict[str, Any]:
+        if meta.get("DicomTags"):
+            return meta
+
+        instance_ids = meta.get("Instances", [])
+        if instance_ids:
+            try:
+                return {
+                    **meta,
+                    "DicomTags": normalize_orthanc_dicom_tags(self.orthanc.get_instance_tags(instance_ids[0])),
+                }
+            except Exception:
+                return meta
+
+        return meta

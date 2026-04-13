@@ -17,7 +17,7 @@ export function DynamicFilters({
   onSearch, 
   isLoading 
 }: DynamicFiltersProps) {
-  // Get first 4 headers from stats dynamically
+  // Get the core metadata headers from stats dynamically.
   const defaultHeaders = useMemo(() => {
     if (!stats) return [];
     return Object.keys(stats.stats).slice(0, 5);
@@ -62,7 +62,13 @@ export function DynamicFilters({
 
   const updateFilter = (header: string, value: any) => {
     const existing = activeFilters.filter(f => f.header !== header);
-    if (value !== undefined && value !== '' && value !== null) {
+    const isEmptyObject =
+      typeof value === 'object' &&
+      value !== null &&
+      value.min === undefined &&
+      value.max === undefined;
+
+    if (value !== undefined && value !== '' && value !== null && !isEmptyObject) {
       onFiltersChange([...existing, { header, value }]);
     } else {
       onFiltersChange(existing);
@@ -120,7 +126,34 @@ export function DynamicFilters({
                 </button>
               </div>
 
-              {config.type === 'categorical' && (
+              {header === 'StudyDate' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    min="2000-01-01"
+                    aria-label="Study date from"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    value={toDateInputValue(currentValue?.min)}
+                    onChange={(e) => {
+                      const min = toDicomDate(e.target.value);
+                      updateFilter(header, { ...currentValue, min });
+                    }}
+                  />
+                  <input
+                    type="date"
+                    min="2000-01-01"
+                    aria-label="Study date to"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    value={toDateInputValue(currentValue?.max)}
+                    onChange={(e) => {
+                      const max = toDicomDate(e.target.value);
+                      updateFilter(header, { ...currentValue, max });
+                    }}
+                  />
+                </div>
+              )}
+
+              {header !== 'StudyDate' && config.type === 'categorical' && (
                 <select
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   value={currentValue || ''}
@@ -135,7 +168,7 @@ export function DynamicFilters({
                 </select>
               )}
 
-              {config.type === 'text' && (
+              {header !== 'StudyDate' && config.type === 'text' && (
                 <input
                   type="text"
                   placeholder={`Search ${header}...`}
@@ -145,7 +178,7 @@ export function DynamicFilters({
                 />
               )}
 
-              {config.type === 'numeric' && (
+              {header !== 'StudyDate' && config.type === 'numeric' && (
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -215,4 +248,16 @@ export function DynamicFilters({
       )}
     </div>
   );
+}
+
+function toDicomDate(value: string): string | undefined {
+  return value ? value.replace(/-/g, '') : undefined;
+}
+
+function toDateInputValue(value: unknown): string {
+  const rawValue = String(value || '');
+  if (!/^\d{8}$/.test(rawValue)) {
+    return '';
+  }
+  return `${rawValue.slice(0, 4)}-${rawValue.slice(4, 6)}-${rawValue.slice(6, 8)}`;
 }

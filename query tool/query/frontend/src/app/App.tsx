@@ -104,40 +104,6 @@ export default function App() {
 
   const selectedInstances = filteredInstances.filter(i => selectedIds.has(i.id));
 
-  const handleExport = () => {
-    if (selectedIds.size === 0) {
-      alert('Please select at least one instance to export.');
-      return;
-    }
-    
-    // Create manifest with all headers
-    const manifest = selectedInstances.map(instance => {
-      const { id, ...metadata } = instance;
-      return metadata;
-    });
-    
-    // Create downloadable JSON
-    const dataStr = JSON.stringify(manifest, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `dicom-manifest-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleBatchSend = () => {
-    if (selectedIds.size === 0) {
-      alert('Please select at least one instance to send.');
-      return;
-    }
-    
-    // Mock batch send functionality
-    console.log('Sending batch:', selectedInstances);
-    alert(`Sending ${selectedIds.size} instances to processing pipeline...\nCheck console for details.`);
-  };
-
   const allHeaders = stats ? [...Object.keys(stats.stats), 'Instances'] : [];
 
   return (
@@ -240,21 +206,21 @@ export default function App() {
             {filteredInstances.length > 0 && (
               <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={handleExport}
-                  disabled={selectedIds.size === 0}
-                  className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  type="button"
+                  aria-label="Inactive action"
+                  title="No action configured."
+                  className="flex items-center justify-center px-6 py-2 bg-green-600 text-white rounded-md cursor-default transition-colors"
                 >
                   <Download className="w-4 h-4" />
-                  Download Manifest ({selectedIds.size})
                 </button>
                 
                 <button
-                  onClick={handleBatchSend}
-                  disabled={selectedIds.size === 0}
-                  className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  type="button"
+                  aria-label="Inactive action"
+                  title="No action configured."
+                  className="flex items-center justify-center px-6 py-2 bg-purple-600 text-white rounded-md cursor-default transition-colors"
                 >
                   <Send className="w-4 h-4" />
-                  Send to Pipeline ({selectedIds.size})
                 </button>
               </div>
             )}

@@ -1,5 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { DicomInstance, getHeaderStats } from '../utils/dicomLoader';
+import { formatDisplayValue } from '../utils/formatters';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -48,7 +49,7 @@ export function DynamicStatsPanel({ instances, selectedInstances, allHeaders }: 
     if (entries.length <= 10 && !isNumeric) {
       // Categorical - use pie chart for few categories
       const data = entries.map(([name, value]) => ({
-        name: name || '(empty)',
+        name: formatDisplayValue(header, name) || '(empty)',
         value
       }));
 
@@ -81,7 +82,7 @@ export function DynamicStatsPanel({ instances, selectedInstances, allHeaders }: 
         .sort((a, b) => b[1] - a[1])
         .slice(0, 15) // Top 15
         .map(([name, count]) => ({
-          name: name.slice(0, 20) || '(empty)',
+          name: formatDisplayValue(header, name).slice(0, 20) || '(empty)',
           count
         }));
 

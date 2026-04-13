@@ -132,8 +132,8 @@ export interface DynamicFilters {
   [headerName: string]: {
     type: 'categorical' | 'numeric' | 'text';
     value?: string | string[];
-    min?: number;
-    max?: number;
+    min?: number | string;
+    max?: number | string;
   };
 }
 
@@ -172,10 +172,10 @@ export function filterInstances(instances: DicomInstance[], filters: DynamicFilt
           if (isNaN(numValue)) {
             return false;
           }
-          if (filterConfig.min !== undefined && numValue < filterConfig.min) {
+          if (filterConfig.min !== undefined && numValue < Number(filterConfig.min)) {
             return false;
           }
-          if (filterConfig.max !== undefined && numValue > filterConfig.max) {
+          if (filterConfig.max !== undefined && numValue > Number(filterConfig.max)) {
             return false;
           }
           break;

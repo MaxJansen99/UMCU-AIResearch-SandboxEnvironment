@@ -1,5 +1,6 @@
 import { CheckSquare, Square, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { DicomInstance } from '../utils/dicomLoader';
+import { formatDisplayValue } from '../utils/formatters';
 import { useEffect, useState } from 'react';
 
 interface DynamicTableProps {
@@ -170,7 +171,7 @@ export function DynamicTable({
                   </td>
                   {visibleHeaders.map(header => {
                     const value = instance[header];
-                    const displayValue = value !== undefined && value !== null ? String(value) : '—';
+                    const displayValue = formatDisplayValue(header, value);
                     const isLongValue = displayValue.length > 50;
                     
                     return (
