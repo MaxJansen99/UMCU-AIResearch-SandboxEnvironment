@@ -1,6 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { DicomInstance, getHeaderStats } from '../utils/dicomLoader';
-import { formatDisplayValue } from '../utils/formatters';
+import { formatDisplayValue, formatHeaderLabel } from '../utils/formatters';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -169,7 +169,7 @@ export function DynamicStatsPanel({ instances, selectedInstances, allHeaders }: 
             {allHeaders
               .filter(h => !selectedStatsHeaders.includes(h))
               .map(header => (
-                <option key={header} value={header}>{header}</option>
+                <option key={header} value={header}>{formatHeaderLabel(header)}</option>
               ))
             }
           </select>
@@ -181,7 +181,7 @@ export function DynamicStatsPanel({ instances, selectedInstances, allHeaders }: 
               onClick={() => removeStatsHeader(header)}
               className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-md hover:bg-blue-200"
             >
-              {header}
+              {formatHeaderLabel(header)}
               <span className="text-blue-500">×</span>
             </button>
           ))}
@@ -193,7 +193,7 @@ export function DynamicStatsPanel({ instances, selectedInstances, allHeaders }: 
         {selectedStatsHeaders.map(header => (
           <div key={header} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">{header}</h3>
+              <h3 className="font-semibold text-gray-900">{formatHeaderLabel(header)}</h3>
               <button
                 onClick={() => removeStatsHeader(header)}
                 className="text-gray-400 hover:text-red-500 text-sm"

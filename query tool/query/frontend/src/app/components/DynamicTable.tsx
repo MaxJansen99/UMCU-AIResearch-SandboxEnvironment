@@ -1,6 +1,6 @@
 import { CheckSquare, Square, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { DicomInstance } from '../utils/dicomLoader';
-import { formatDisplayValue } from '../utils/formatters';
+import { formatDisplayValue, formatHeaderLabel } from '../utils/formatters';
 import { useEffect, useState } from 'react';
 
 interface DynamicTableProps {
@@ -107,7 +107,7 @@ export function DynamicTable({
                     onChange={() => toggleHeaderVisibility(header)}
                     className="rounded"
                   />
-                  <span className="truncate" title={header}>{header}</span>
+                  <span className="truncate" title={header}>{formatHeaderLabel(header)}</span>
                 </label>
               ))}
             </div>
@@ -137,7 +137,7 @@ export function DynamicTable({
                   key={header}
                   className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider whitespace-nowrap"
                 >
-                  {header}
+                  {formatHeaderLabel(header)}
                 </th>
               ))}
             </tr>

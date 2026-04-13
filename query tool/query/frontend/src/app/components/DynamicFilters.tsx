@@ -1,5 +1,6 @@
 import { Filter, Plus, Minus } from 'lucide-react';
 import { DicomStats, FilterConfig, analyzeHeader } from '../utils/dicomLoader';
+import { formatHeaderLabel } from '../utils/formatters';
 import { useState, useMemo, useEffect } from 'react';
 
 interface DynamicFiltersProps {
@@ -115,7 +116,7 @@ export function DynamicFilters({
             <div key={header} className="relative">
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-sm font-medium text-gray-700">
-                  {header}
+                  {formatHeaderLabel(header)}
                 </label>
                 <button
                   onClick={() => removeFilterHeader(header)}
@@ -238,7 +239,7 @@ export function DynamicFilters({
                 key={idx}
                 className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded"
               >
-                {filter.header}: {typeof filter.value === 'object' 
+                {formatHeaderLabel(filter.header)}: {typeof filter.value === 'object' 
                   ? `${filter.value.min || '∞'} - ${filter.value.max || '∞'}`
                   : filter.value}
               </span>

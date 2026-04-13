@@ -93,7 +93,7 @@ function toDicomInstance(series: Record<string, unknown>): DicomInstance {
     StudyDescription: stringValue(series.study_description),
     SeriesDescription: stringValue(series.series_description),
     BodyPartExamined: stringValue(series.body_part_examined),
-    Instances: numberValue(series.instances),
+    Images: numberValue(series.instances),
     StudyInstanceUID: stringValue(series.study_instance_uid),
     SeriesInstanceUID: stringValue(series.series_instance_uid),
   };
@@ -122,7 +122,7 @@ function countValues(instances: DicomInstance[], key: string): Record<string, nu
 }
 
 function sumInstances(instances: DicomInstance[]): number {
-  return instances.reduce((total, instance) => total + numberValue(instance.Instances), 0);
+  return instances.reduce((total, instance) => total + numberValue(instance.Images), 0);
 }
 
 function stringValue(value: unknown): string {

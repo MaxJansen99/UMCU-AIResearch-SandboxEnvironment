@@ -106,7 +106,7 @@ export default function App() {
 
   const selectedInstances = filteredInstances.filter(i => selectedIds.has(i.id));
 
-  const allHeaders = stats ? [...Object.keys(stats.stats), 'Instances'] : [];
+  const allHeaders = stats ? [...Object.keys(stats.stats), 'Images'] : [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -123,7 +123,7 @@ export default function App() {
             Search Orthanc metadata from the DICOM archive
             {stats && (
               <span className="ml-2 text-blue-600">
-                • {stats.total_instances || 0} instances • {stats.total_series || 0} series
+                • {stats.total_instances || 0} images • {stats.total_series || 0} series
                 {stats.timestamp && (
                   <span className="text-gray-500">
                     {' '}• Updated: {new Date(stats.timestamp * 1000).toLocaleString()}
@@ -184,14 +184,14 @@ export default function App() {
                   <div className="text-sm text-blue-900">
                     {activeFilters.length > 0 ? (
                       <>
-                        Found <strong>{filteredInstances.length}</strong> instances matching {activeFilters.length} filter(s)
+                        Found <strong>{filteredInstances.length}</strong> series matching {activeFilters.length} filter(s)
                         {selectedIds.size > 0 && (
                           <span> • <strong>{selectedIds.size}</strong> selected</span>
                         )}
                       </>
                     ) : (
                       <>
-                        Showing all <strong>{filteredInstances.length}</strong> instances
+                        Showing all <strong>{filteredInstances.length}</strong> series
                         {selectedIds.size > 0 && (
                           <span> • <strong>{selectedIds.size}</strong> selected</span>
                         )}

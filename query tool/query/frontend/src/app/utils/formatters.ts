@@ -18,3 +18,16 @@ export function formatDisplayValue(header: string, value: unknown): string {
 
   return String(value);
 }
+
+export function formatHeaderLabel(header: string): string {
+  const labels: Record<string, string> = {
+    BodyPartExamined: 'Anatomical region',
+    Images: 'Images',
+    Modality: 'Modality',
+    SeriesDescription: 'Series description',
+    StudyDate: 'Study date',
+    StudyDescription: 'Study description',
+  };
+
+  return labels[header] || header;
+}
