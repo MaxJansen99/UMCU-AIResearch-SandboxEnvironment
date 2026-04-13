@@ -36,8 +36,6 @@ This updates your group membership for the current shell. If that does not work,
 
 ```
 ├── docker-compose.yaml          # Main Docker Compose configuration
-├── .env                         # Environment variables (not committed)
-├── .env.example                 # Example environment variables
 ├── README.md                    # This file
 ├── nginx/                       # NGINX configuration
 │   ├── conf.d/                 # NGINX server blocks
@@ -90,28 +88,27 @@ Certificates are managed using Certbot and stored in `nginx/ssl/`.
 
 ## Setup
 
-### 1. Environment Variables
-
-Copy the example environment file and configure it:
-
-```bash
-cp .env.example .env
-# Edit .env with your specific settings
-```
-
-### 2. SSL/TLS Certificates
+### 1. SSL/TLS Certificates
 
 Certificates are managed using Certbot and should be placed in `nginx/ssl/`.
 
 Ensure the directory structure exists:
 
 ```bash
-mkdir -p nginx/ssl/{live,archive,renewal,renewal-hooks/{pre,post,deploy}}
+mkdir -p nginx/ssl
+docker run --rm \
+  -v "$(pwd)/nginx/ssl:/etc/letsencrypt" \
+  -p 80:80 \
+  certbot/certbot:v5.5.0 certonly \
+  --standalone \
+  --agree-tos \
+  --email EMAIL \
+  -d DOMAIN
 ```
 
-Place your certificate files in `nginx/ssl/live/` according to your domain configuration.
+Replace `EMAIL` and `DOMAIN` with your desired credentials.
 
-### 3. Authentication Credentials
+### 2. Authentication Credentials
 
 Create basic authentication credentials using htpasswd:
 
@@ -122,7 +119,7 @@ docker run --rm --entrypoint htpasswd httpd:2.4.66 -Bbn USERNAME PASSWORD > ngin
 
 Replace `USERNAME` and `PASSWORD` with your desired credentials.
 
-### 4. Start The Environment
+### 3. Start The Environment
 
 Start all services with Docker Compose:
 
@@ -147,23 +144,17 @@ docker compose down
 Log in:
 
 ```bash
-docker login localhost
+docker login DOMAIN
 ```
 
 Tag an image:
 
 ```bash
-docker tag image:latest localhost/image:latest
+docker tag image:latest DOMAIN/image:latest
 ```
 
 Push it:
 
 ```bash
-docker push localhost/image:latest
-```
-
-Pull it:
-
-```bash
-docker pull localhost/image:latest
+docker push DOMAIN/image:latest
 ```
