@@ -11,6 +11,8 @@ import {
 } from './utils/dicomLoader';
 import { queryOrthancMetadata } from './utils/queryClient';
 import { Download, Send, AlertCircle } from 'lucide-react';
+import huLogo from '../assets/hogeschool_utrecht_Logo_jpg.png';
+import umcLogo from '../assets/umc_utrecht_Logo_jpg.svg';
 
 export default function App() {
   const [stats, setStats] = useState<DicomStats | null>(null);
@@ -110,7 +112,12 @@ export default function App() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-[1600px] mx-auto px-6 py-4">
+        <div className="relative max-w-[1600px] mx-auto px-6 py-4 sm:px-40 text-center">
+          <img
+            src={umcLogo}
+            alt="UMC Utrecht"
+            className="mx-auto mb-3 h-12 w-auto object-contain sm:absolute sm:left-6 sm:top-1/2 sm:mb-0 sm:h-16 sm:-translate-y-1/2"
+          />
           <h1 className="text-2xl font-bold text-gray-900">DICOM Metadata Query Dashboard</h1>
           <p className="text-sm text-gray-600 mt-1">
             Search Orthanc metadata from the DICOM archive
@@ -125,6 +132,10 @@ export default function App() {
               </span>
             )}
           </p>
+          <div className="mt-3 flex items-center justify-center gap-3 sm:absolute sm:right-6 sm:top-1/2 sm:mt-0 sm:-translate-y-1/2">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Made by</span>
+            <img src={huLogo} alt="Hogeschool Utrecht" className="h-12 w-auto object-contain sm:h-24" />
+          </div>
         </div>
       </header>
 
@@ -209,7 +220,7 @@ export default function App() {
                   type="button"
                   aria-label="Inactive action"
                   title="No action configured."
-                  className="flex items-center justify-center px-6 py-2 bg-green-600 text-white rounded-md cursor-default transition-colors"
+                  className="flex items-center justify-center p-0 text-gray-500 cursor-default"
                 >
                   <Download className="w-4 h-4" />
                 </button>
@@ -218,7 +229,7 @@ export default function App() {
                   type="button"
                   aria-label="Inactive action"
                   title="No action configured."
-                  className="flex items-center justify-center px-6 py-2 bg-purple-600 text-white rounded-md cursor-default transition-colors"
+                  className="flex items-center justify-center p-0 text-gray-500 cursor-default"
                 >
                   <Send className="w-4 h-4" />
                 </button>
