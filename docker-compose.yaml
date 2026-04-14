@@ -23,19 +23,6 @@ services:
     depends_on:
       - registry
 
-  docker-manager:
-    build: ./DockerManager
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./DockerManager:/app
-    networks:
-      - registry_network
-    expose:
-      - "8000"
-    depends_on:
-      - registry
-      - nginx
-
 volumes:
   registry_data:
 

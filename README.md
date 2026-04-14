@@ -18,7 +18,7 @@ Before starting the environment, make sure the following are available:
 
 - Docker Engine
 - Docker Compose
-- OpenSSL
+
 - `htpasswd` from Apache Httpd
 - Access to ports `80` and `443` on the host machine
 
@@ -78,7 +78,7 @@ NGINX serves as the entry point and reverse proxy for the registry.
 
 ### SSL/TLS Certificates
 
-Certificates are managed using Certbot and stored in `nginx/ssl/`.
+Certificates can be managed using Certbot (for production with domain) or self-signed certificates (for local development).
 
 **Structure:**
 - `live/`: Current active certificates
@@ -86,14 +86,61 @@ Certificates are managed using Certbot and stored in `nginx/ssl/`.
 - `renewal/`: Renewal configuration
 - `renewal-hooks/`: Scripts that run during renewal (pre, post, deploy)
 
+#### For Local Development (Self-Signed Certificates)
+
+If you don't have a domain or want to test locally, you can generate self-signed certificates for localhost using Docker:
+
+```bash
+mkdir -p nginx/ssl/live/localhost
+docker run --rm \
+  -v "$(pwd)/nginx/ssl/live/localhost:/certs" \
+  alpine/openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /certs/privkey.pem \
+  -out /certs/fullchain.pem \
+  -subj "/CN=localhost"
+```
+
+The NGINX configuration already includes a localhost server block that will automatically use these certificates. No additional configuration is needed.
+
+**Note:** You'll need to trust the self-signed certificate in your Docker client or use `--insecure-registry` flag:
+
+```bash
+# For Docker to trust the self-signed certificate
+mkdir -p /etc/docker/certs.d/localhost
+cp nginx/ssl/live/localhost/fullchain.pem /etc/docker/certs.d/localhost/ca.crt
+
+# Then restart Docker
+sudo systemctl restart docker
+```
+
+Alternatively, you can use the `--insecure-registry` flag when starting Docker.
+
 ## Setup
 
 ### 1. SSL/TLS Certificates
 
-Certificates are managed using Certbot and should be placed in `nginx/ssl/`.
+The NGINX configuration is set up for **localhost development by default**. For production with a domain, you'll need to uncomment the production server block.
 
-Ensure the directory structure exists:
+#### Option A: Local Development (Default - Recommended)
 
+```bash
+# Generate self-signed certificates for localhost
+mkdir -p nginx/ssl/live/localhost
+docker run --rm \
+  -v "$(pwd)/nginx/ssl/live/localhost:/certs" \
+  alpine/openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /certs/privkey.pem \
+  -out /certs/fullchain.pem \
+  -subj "/CN=localhost"
+```
+
+The NGINX configuration already has localhost enabled - no changes needed!
+
+#### Option B: Production with Domain
+
+If you have a real domain and want to use Certbot:
+
+1. **Generate Certbot certificates:**
 ```bash
 mkdir -p nginx/ssl
 docker run --rm \
@@ -102,11 +149,18 @@ docker run --rm \
   certbot/certbot:v5.5.0 certonly \
   --standalone \
   --agree-tos \
-  --email EMAIL \
-  -d DOMAIN
+  --email your-email@example.com \
+  -d your-domain.com
 ```
 
-Replace `EMAIL` and `DOMAIN` with your desired credentials.
+2. **Enable the production server block:**
+   - Edit `nginx/conf.d/registry.conf`
+   - Uncomment the production server block (remove the `/*` and `*/` comments)
+   - Update the server_name to your domain
+   - Update the certificate paths to match your domain
+
+3. **Disable localhost (optional):**
+   - You can comment out or remove the localhost server block if you only want production
 
 ### 2. Authentication Credentials
 
@@ -141,20 +195,76 @@ docker compose down
 
 ## How To Use The Registry
 
-Log in:
+### On Localhost (for Development) - DEFAULT SETUP
 
+After setting up with self-signed certificates:
+
+**Log in:**
 ```bash
-docker login DOMAIN
+docker login localhost
 ```
 
-Tag an image:
-
+**Tag an image:**
 ```bash
-docker tag image:latest DOMAIN/image:latest
+docker tag my-image:latest localhost/my-image:latest
 ```
 
-Push it:
-
+**Push the image:**
 ```bash
-docker push DOMAIN/image:latest
+docker push localhost/my-image:latest
+```
+
+**Pull the image:**
+```bash
+docker pull localhost/my-image:latest
+```
+
+**Troubleshooting localhost:**
+If you get certificate errors, you have three options:
+
+1. **Trust the certificate (recommended):**
+```bash
+sudo mkdir -p /etc/docker/certs.d/localhost
+sudo cp nginx/ssl/live/localhost/fullchain.pem /etc/docker/certs.d/localhost/ca.crt
+sudo systemctl restart docker
+```
+
+2. **Use insecure registry flag:**
+```bash
+# Add this to your Docker daemon startup or config
+dockerd --insecure-registry localhost
+```
+
+3. **Edit Docker daemon config:**
+```bash
+# Edit /etc/docker/daemon.json and add:
+{
+  "insecure-registries" : ["localhost"]
+}
+# Then restart Docker
+sudo systemctl restart docker
+```
+
+### On Production Server (with Domain)
+
+After setting up with Certbot certificates and uncommenting the production server block:
+
+**Log in:**
+```bash
+docker login your-domain.com
+```
+
+**Tag an image:**
+```bash
+docker tag my-image:latest your-domain.com/my-image:latest
+```
+
+**Push the image:**
+```bash
+docker push your-domain.com/my-image:latest
+```
+
+**Pull the image (from another machine):**
+```bash
+docker pull your-domain.com/my-image:latest
 ```
