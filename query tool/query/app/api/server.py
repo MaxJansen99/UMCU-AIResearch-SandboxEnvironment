@@ -19,14 +19,17 @@ class QueryServer:
 
         class QueryHTTPRequestHandler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
+                # GET / and /health: backend health check.
                 if self.path in {"/", "/health"}:
                     self._send_json({"ok": True, "service": "dicom-query", "pacs_url": query_service.orthanc.base_url})
                     return
 
+                # GET /dashboard: serve the React dashboard entry HTML.
                 if self.path == "/dashboard":
                     self._send_file(frontend_dir / "index.html")
                     return
 
+                # GET /assets/...: serve built frontend JS, CSS, images and other static assets.
                 if self.path.startswith("/assets/"):
                     requested = self.path.removeprefix("/assets/").split("?", 1)[0]
                     self._send_file(frontend_dir / "assets" / requested)
@@ -35,6 +38,7 @@ class QueryServer:
                 self._send_json({"ok": False, "error": "Not found."}, HTTPStatus.NOT_FOUND)
 
             def do_POST(self) -> None:
+                # POST /query: run metadata filters against Orthanc and return stats/results.
                 if self.path != "/query":
                     self._send_json({"ok": False, "error": "Not found."}, HTTPStatus.NOT_FOUND)
                     return
