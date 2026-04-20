@@ -1,17 +1,4 @@
 services:
-  frontend:
-    build:
-      context: ./query/frontend
-      dockerfile: Dockerfile
-    container_name: dicom-frontend
-    ports:
-      - "3000:80"
-    networks:
-      - dicom-net
-    depends_on:
-      dicom-query:
-        condition: service_started
-
   orthanc:
     image: jodogne/orthanc-plugins:latest
     container_name: orthanc
@@ -36,18 +23,13 @@ services:
       - "8000:8000"
     environment:
       QUERY_PORT: "8000"
-      QUERY_TLS: "false"
+      QUERY_TLS: "true"
       QUERY_HOST: "0.0.0.0"
       QUERY_TLS_CERT: /certs/server.crt
       QUERY_TLS_KEY: /certs/server.key
       QUERY_PACS_URL: "http://orthanc:8042"
       QUERY_PACS_USER: "orthanc"
       QUERY_PACS_PASSWORD: "orthanc"
-      DB_HOST: "postgres"
-      DB_PORT: "5432"
-      DB_NAME: "dicom_query"
-      DB_USER: "dicom_query"
-      DB_PASSWORD: "dicom_query"
     volumes:
       - ./idc-data:/data:ro
       - query_certs:/certs
@@ -56,29 +38,35 @@ services:
     depends_on:
       orthanc:
         condition: service_started
-      postgres:
-        condition: service_healthy
       dicom-importer:
         condition: service_completed_successfully
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: dicom-postgres
-    environment:
-      POSTGRES_DB: "dicom_query"
-      POSTGRES_USER: "dicom_query"
-      POSTGRES_PASSWORD: "dicom_query"
+  dicom-datamanager:
+    build:
+      context: ./datamanager
+      dockerfile: Dockerfile
+    container_name: dicom-datamanager
     ports:
-      - "5433:5432"
+      - "8001:8001"
+    environment:
+      DATAMANAGER_PORT: "8001"
+      DATAMANAGER_HOST: "0.0.0.0"
+      DATAMANAGER_PACS_URL: "http://orthanc:8042"
+      DATAMANAGER_PACS_USER: "orthanc"
+      DATAMANAGER_PACS_PASSWORD: "orthanc"
+      DEPERSONALIZED_ROOT: "/depersonalized"
+      RECORDS_FILE: "/depersonalized/records.json"
+      SMTP_SERVER: "smtp.gmail.com"
+      SMTP_PORT: "587"
+      SMTP_USER: "${SMTP_USER}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD}"
     volumes:
-      - postgres-db:/var/lib/postgresql/data
+      - ./depersonalized_data:/depersonalized:rw
     networks:
       - dicom-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dicom_query -d dicom_query"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+    depends_on:
+      orthanc:
+        condition: service_started
 
   dicom-importer:
     image: python:3.11-slim
@@ -99,20 +87,10 @@ services:
     entrypoint: ["sh", "-c", "pip install -q requests && python /app/import_helper.py"]
     restart: "no"
 
-  test-client:
-    image: curlimages/curl:latest
-    container_name: test-client
-    depends_on:
-      - dicom-query
-    networks:
-      - dicom-net
-    entrypoint: ["sh", "-c", "sleep 10 && curl http://dicom-query:8000/health && sleep 3600"]
-
 volumes:
   query_certs:
   orthanc-db:
   orthanc-config:
-  postgres-db:
 
 networks:
   dicom-net:

@@ -1,1 +1,0 @@
-"""UMC DICOM query service."""

@@ -1,0 +1,166 @@
+[
+  {
+    "user_id": "researcher@university.edu",
+    "request_hash": "5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d",
+    "requested_images": [
+      "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+      "f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24"
+    ],
+    "status": "accepted",
+    "created_at": 1776095732.1935768,
+    "processed_by": "admin@university.edu",
+    "decision_message": "Approved for training dataset",
+    "processed_at": 1776095926.9468498,
+    "instances": [
+      {
+        "instance_id": "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+        "stored_file": "/depersonalized/instances/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm",
+        "linked_file": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm"
+      },
+      {
+        "instance_id": "f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24",
+        "stored_file": "/depersonalized/instances/f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24.dcm",
+        "linked_file": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d/f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24.dcm"
+      }
+    ],
+    "request_folder": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d"
+  },
+  {
+    "user_id": "pierre.mulder@student.hu.nl",
+    "request_hash": "5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d",
+    "requested_images": [
+      "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+      "f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24"
+    ],
+    "status": "accepted",
+    "created_at": 1776095798.1411884,
+    "processed_by": "admin@university.edu",
+    "decision_message": "Approved for training dataset",
+    "processed_at": 1776097782.0662963,
+    "instances": [
+      {
+        "instance_id": "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+        "stored_file": "/depersonalized/instances/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm",
+        "linked_file": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm"
+      },
+      {
+        "instance_id": "f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24",
+        "stored_file": "/depersonalized/instances/f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24.dcm",
+        "linked_file": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d/f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24.dcm"
+      }
+    ],
+    "request_folder": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d"
+  },
+  {
+    "user_id": "pierre.mulder@student.hu.nl",
+    "request_hash": "09e8b958375800b06b46fbd063a9fc4f5d1ea389741422f02944a10ccc7e8205",
+    "requested_images": [
+      "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c"
+    ],
+    "status": "accepted",
+    "created_at": 1776096009.7959025,
+    "processed_by": "admin@university.edu",
+    "decision_message": "Approved for training dataset",
+    "processed_at": 1776096036.0853336,
+    "instances": [
+      {
+        "instance_id": "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+        "stored_file": "/depersonalized/instances/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm",
+        "linked_file": "/depersonalized/requests/09e8b958375800b06b46fbd063a9fc4f5d1ea389741422f02944a10ccc7e8205/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm"
+      }
+    ],
+    "request_folder": "/depersonalized/requests/09e8b958375800b06b46fbd063a9fc4f5d1ea389741422f02944a10ccc7e8205"
+  },
+  {
+    "user_id": "pierre.mulder@student.hu.nl",
+    "request_hash": "5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d",
+    "requested_images": [
+      "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+      "f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24"
+    ],
+    "status": "accepted",
+    "created_at": 1776097997.309827,
+    "processed_by": "auto-approved",
+    "decision_message": "Automatically approved - previously accepted request",
+    "processed_at": 1776097997.3098452,
+    "instances": [
+      {
+        "instance_id": "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+        "stored_file": "/depersonalized/instances/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm",
+        "linked_file": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm"
+      },
+      {
+        "instance_id": "f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24",
+        "stored_file": "/depersonalized/instances/f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24.dcm",
+        "linked_file": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d/f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24.dcm"
+      }
+    ],
+    "request_folder": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d"
+  },
+  {
+    "user_id": "researcher@university.edu",
+    "request_hash": "5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d",
+    "requested_images": [
+      "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+      "f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24"
+    ],
+    "status": "accepted",
+    "created_at": 1776169797.6369417,
+    "processed_by": "auto-approved",
+    "decision_message": "Automatically approved - previously accepted request",
+    "processed_at": 1776169797.63695,
+    "instances": [
+      {
+        "instance_id": "efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c",
+        "stored_file": "/depersonalized/instances/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm",
+        "linked_file": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d/efd149cb-a31cd3f6-89f5731c-b22c1340-30bf086c.dcm"
+      },
+      {
+        "instance_id": "f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24",
+        "stored_file": "/depersonalized/instances/f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24.dcm",
+        "linked_file": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d/f907a945-207e1813-0afd1061-ec8a0a20-8e4afc24.dcm"
+      }
+    ],
+    "request_folder": "/depersonalized/requests/5c207e00eeadf3d3c1024fe191948d02deb03ba1108b587299d0a71ade42a71d"
+  },
+  {
+    "user_id": "researcher@university.edu",
+    "request_hash": "d028d8031f2cdb7cd408e283a97bb4664964e39dbdb2b00b94989fe1a2af5b5c",
+    "requested_images": [
+      "eeb7a76a-8ea72325-1d20b5cf-6a09d0e8-6bfacc22"
+    ],
+    "status": "accepted",
+    "created_at": 1776169857.8439708,
+    "processed_by": "admin@university.edu",
+    "decision_message": "Approved for training dataset",
+    "processed_at": 1776169948.7176294,
+    "instances": [
+      {
+        "instance_id": "eeb7a76a-8ea72325-1d20b5cf-6a09d0e8-6bfacc22",
+        "stored_file": "/depersonalized/instances/eeb7a76a-8ea72325-1d20b5cf-6a09d0e8-6bfacc22.dcm",
+        "linked_file": "/depersonalized/requests/d028d8031f2cdb7cd408e283a97bb4664964e39dbdb2b00b94989fe1a2af5b5c/eeb7a76a-8ea72325-1d20b5cf-6a09d0e8-6bfacc22.dcm"
+      }
+    ],
+    "request_folder": "/depersonalized/requests/d028d8031f2cdb7cd408e283a97bb4664964e39dbdb2b00b94989fe1a2af5b5c"
+  },
+  {
+    "user_id": "pierre.mulder@student.hu.nl",
+    "request_hash": "18da4b34e5457af1ad9cae19d4981870b715fe7aeec5bf27e0d189a30a1d66ea",
+    "requested_images": [
+      "a15793e0-7522d5f2-f7336ca1-e1542047-78eb9040"
+    ],
+    "status": "accepted",
+    "created_at": 1776170232.464029,
+    "processed_by": "admin@university.edu",
+    "decision_message": "Approved for training dataset",
+    "processed_at": 1776170259.1410153,
+    "instances": [
+      {
+        "instance_id": "a15793e0-7522d5f2-f7336ca1-e1542047-78eb9040",
+        "stored_file": "/depersonalized/instances/a15793e0-7522d5f2-f7336ca1-e1542047-78eb9040.dcm",
+        "linked_file": "/depersonalized/requests/18da4b34e5457af1ad9cae19d4981870b715fe7aeec5bf27e0d189a30a1d66ea/a15793e0-7522d5f2-f7336ca1-e1542047-78eb9040.dcm"
+      }
+    ],
+    "request_folder": "/depersonalized/requests/18da4b34e5457af1ad9cae19d4981870b715fe7aeec5bf27e0d189a30a1d66ea"
+  }
+]

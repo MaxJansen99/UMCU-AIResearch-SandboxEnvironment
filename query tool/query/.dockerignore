@@ -1,4 +1,10 @@
-frontend/node_modules
-frontend/dist
-**/__pycache__
+__pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+.git/
+.gitignore
+idc-data/
