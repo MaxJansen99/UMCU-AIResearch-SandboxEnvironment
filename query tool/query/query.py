@@ -349,7 +349,7 @@ def pacs_query(
     ids = resp.json() if isinstance(resp.json(), list) else []
 
     matched: List[Dict[str, Any]] = []
-    instances_list: List[Dict[str, Any]] = []
+    series_list: List[Dict[str, Any]] = []
     stats_counters: Dict[str, Counter] = {tag: Counter() for tag in stats_tags}
 
     for resource_id in ids:
@@ -372,7 +372,7 @@ def pacs_query(
             if value is not None:
                 stats_counters[tag][_stats_key(value)] += 1
 
-        # Collect stats from instances in this series, with instance-level filtering
+        # Get tags from the first instance of this series for series-level detail
         try:
             instances_resp = requests.get(
                 f"{pacs_url.rstrip('/')}/series/{resource_id}/instances",
@@ -381,55 +381,50 @@ def pacs_query(
             )
             if instances_resp.status_code == 200:
                 instances = instances_resp.json()
-                print(f"Series {resource_id} has {len(instances)} instances")
-                print(instances[0] if instances else "No instances found")
-                for instance in instances:
-                    if isinstance(instance, dict) and "ID" in instance:
-                        instance_id = instance["ID"]
+                if instances:
+                    # Only process the first instance
+                    first_instance = instances[0]
+                    if isinstance(first_instance, dict) and "ID" in first_instance:
+                        instance_id = first_instance["ID"]
                     else:
-                        print(f"Warning: Unexpected instance format: {instance}")
+                        print(f"Warning: Unexpected instance format: {first_instance}")
                         continue
-                    print(f"Processing instance {instance_id}")
-                    # Fetch instance tags
+                    
+                    # Fetch tags from first instance
                     instance_resp = requests.get(
                         f"{pacs_url.rstrip('/')}/instances/{instance_id}/tags",
                         auth=auth,
                         timeout=30,
                     )
-                    print(f"Instance tags fetch status: {instance_resp.status_code}")
                     if instance_resp.status_code == 200:
                         instance_tags = instance_resp.json()
                         # Normalize Orthanc tag structure (e.g. {'0008,0060': {...}}) to Name->Value mapping
                         normalized_instance_tags = normalize_orthanc_dicom_tags(instance_tags)
-                        # Check filters on instance level
-                        print(f"Instance {instance_id} tags: {normalized_instance_tags}")
-                        instance_meta = {
+                        # Check filters on series level (using first instance data)
+                        series_meta = {
                             "MainDicomTags": meta.get('MainDicomTags', {}),
                             "DicomTags": normalized_instance_tags,
                         }
-                        if not pacs_item_matches(instance_meta, filter_specs):
-                            print(f"Instance {instance_id} does not match filters, skipping stats collection")
+                        if not pacs_item_matches(series_meta, filter_specs):
                             continue
 
-                        instance_record: Dict[str, Any] = {
-                            "id": instance_id,
-                            "series_id": resource_id,
-                            "uid": normalized_instance_tags.get("SOPInstanceUID"),
-                            "name": normalized_instance_tags.get("InstanceNumber")
+                        series_record: Dict[str, Any] = {
+                            "id": resource_id,
+                            "uid": normalized_instance_tags.get("SeriesInstanceUID") or resource_id,
+                            "name": meta.get("MainDicomTags", {}).get("SeriesDescription")
                             or normalized_instance_tags.get("SeriesDescription")
-                            or instance_id,
+                            or resource_id,
+                            "instance_count": len(instances),
                         }
 
-                        # Collect instance-level stats and expose requested stat values.
+                        # Collect series-level stats and expose requested stat values from first instance.
                         for tag in stats_tags:
-                            value = pacs_safe_get_full(instance_meta, tag)
-                            instance_record[tag] = value
-                            print(f"Value for tag {tag} in instance {instance_id}: {value}")
+                            value = pacs_safe_get_full(series_meta, tag)
+                            series_record[tag] = value
                             if value is not None:
-                                print(f"Collecting {tag}: {value}")
                                 stats_counters[tag][_stats_key(value)] += 1
 
-                        instances_list.append(instance_record)
+                        series_list.append(series_record)
         except Exception:
             # If instance fetching fails, continue with series-level stats only
             pass
@@ -443,7 +438,7 @@ def pacs_query(
         "total_series_found": len(ids),
         "match_count": len(matched),
         "series": [match["id"] for match in matched],  # Just IDs, not full metadata
-        "instances": instances_list,
+        "series_details": series_list,
         "stats": summarize_stats(stats_counters),
     }
 
