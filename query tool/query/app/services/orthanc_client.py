@@ -31,6 +31,9 @@ class OrthancClient:
     def get_series(self, series_id: str) -> dict[str, Any]:
         return self.get(f"/series/{series_id}")
 
+    def get_study(self, study_id: str) -> dict[str, Any]:
+        return self.get(f"/studies/{study_id}")
+
     def get_series_instances(self, series_id: str) -> list[Any]:
         result = self.get(f"/series/{series_id}/instances")
         return result if isinstance(result, list) else []

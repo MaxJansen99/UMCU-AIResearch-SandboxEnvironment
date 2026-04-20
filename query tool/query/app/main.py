@@ -4,8 +4,11 @@ from pathlib import Path
 from app.api.server import QueryServer
 from app.core.config import settings
 from app.core.tls import create_ssl_context
+from app.services.auth import AuthService
+from app.services.database import Database
 from app.services.orthanc_client import OrthancClient
 from app.services.query_service import QueryService
+from app.services.request_workflow import RequestWorkflowService
 from app.services.stats_service import collect_and_save_stats, start_periodic_collection
 
 
@@ -25,6 +28,10 @@ def main() -> None:
     args = parse_args()
     orthanc = OrthancClient(args.pacs_url, auth=settings.auth)
     query_service = QueryService(orthanc)
+    database = Database(settings.db_connection_info)
+    database.initialize()
+    auth_service = AuthService(database)
+    request_workflow = RequestWorkflowService(database, orthanc)
 
     if settings.collect_stats_on_startup:
         collect_and_save_stats(query_service, settings.stats_file)
@@ -32,7 +39,7 @@ def main() -> None:
 
     frontend_root = Path(__file__).resolve().parents[1] / "frontend"
     frontend_dir = frontend_root / "dist" if (frontend_root / "dist" / "index.html").is_file() else frontend_root
-    server = QueryServer(query_service, frontend_dir).build(args.host, args.port)
+    server = QueryServer(query_service, frontend_dir, database, auth_service, request_workflow).build(args.host, args.port)
 
     protocol = "http"
     if args.tls:

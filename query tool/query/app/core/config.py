@@ -19,12 +19,27 @@ class Settings:
         "true",
         "yes",
     }
+    db_host: str = os.environ.get("DB_HOST", "localhost")
+    db_port: int = int(os.environ.get("DB_PORT", "5432"))
+    db_name: str = os.environ.get("DB_NAME", "dicom_query")
+    db_user: str = os.environ.get("DB_USER", "dicom_query")
+    db_password: str = os.environ.get("DB_PASSWORD", "dicom_query")
 
     @property
     def auth(self) -> tuple[str, str] | None:
         if self.pacs_user and self.pacs_password:
             return self.pacs_user, self.pacs_password
         return None
+
+    @property
+    def db_connection_info(self) -> dict[str, str | int]:
+        return {
+            "host": self.db_host,
+            "port": self.db_port,
+            "dbname": self.db_name,
+            "user": self.db_user,
+            "password": self.db_password,
+        }
 
 
 settings = Settings()

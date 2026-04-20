@@ -30,6 +30,11 @@ services:
       QUERY_PACS_URL: "http://orthanc:8042"
       QUERY_PACS_USER: "orthanc"
       QUERY_PACS_PASSWORD: "orthanc"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_NAME: "dicom_query"
+      DB_USER: "dicom_query"
+      DB_PASSWORD: "dicom_query"
     volumes:
       - ./idc-data:/data:ro
       - query_certs:/certs
@@ -38,8 +43,29 @@ services:
     depends_on:
       orthanc:
         condition: service_started
+      postgres:
+        condition: service_healthy
       dicom-importer:
         condition: service_completed_successfully
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: dicom-postgres
+    environment:
+      POSTGRES_DB: "dicom_query"
+      POSTGRES_USER: "dicom_query"
+      POSTGRES_PASSWORD: "dicom_query"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+    networks:
+      - dicom-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dicom_query -d dicom_query"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   dicom-importer:
     image: python:3.11-slim
@@ -73,6 +99,7 @@ volumes:
   query_certs:
   orthanc-db:
   orthanc-config:
+  postgres-db:
 
 networks:
   dicom-net:

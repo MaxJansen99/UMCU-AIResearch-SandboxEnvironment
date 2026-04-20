@@ -88,6 +88,7 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
 function toDicomInstance(series: Record<string, unknown>): DicomInstance {
   return {
     id: String(series.id || series.series_instance_uid || randomId()),
+    OrthancStudyID: stringValue(series.orthanc_study_id),
     Modality: stringValue(series.modality),
     StudyDate: stringValue(series.study_date),
     StudyDescription: stringValue(series.study_description),

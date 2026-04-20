@@ -166,6 +166,7 @@ class QueryService:
         instance_tags = meta.get("DicomTags", {})
         return {
             "id": series_id,
+            "orthanc_study_id": meta.get("ParentStudy", ""),
             "study_instance_uid": tags.get("StudyInstanceUID", instance_tags.get("StudyInstanceUID", "")),
             "series_instance_uid": tags.get("SeriesInstanceUID", instance_tags.get("SeriesInstanceUID", "")),
             "modality": tags.get("Modality", instance_tags.get("Modality", "")),

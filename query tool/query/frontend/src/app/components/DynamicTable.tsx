@@ -11,6 +11,7 @@ interface DynamicTableProps {
   currentPage: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  getSelectionId?: (instance: DicomInstance) => string;
 }
 
 export function DynamicTable({
@@ -20,7 +21,8 @@ export function DynamicTable({
   onSelectionChange,
   currentPage,
   pageSize,
-  onPageChange
+  onPageChange,
+  getSelectionId = (instance) => instance.id
 }: DynamicTableProps) {
   // Get first 6 headers from stats dynamically as default visible columns
   const defaultVisibleHeaders = allHeaders.slice(0, 6);
@@ -38,14 +40,14 @@ export function DynamicTable({
   const totalPages = Math.ceil(instances.length / pageSize);
 
   const toggleSelectAll = () => {
-    const visibleIds = visibleInstances.map(i => i.id);
-    const allSelected = visibleIds.every(id => selectedIds.has(id));
+    const allIds = instances.map(getSelectionId);
+    const allSelected = allIds.length > 0 && allIds.every(id => selectedIds.has(id));
 
     const newSelection = new Set(selectedIds);
     if (allSelected) {
-      visibleIds.forEach(id => newSelection.delete(id));
+      allIds.forEach(id => newSelection.delete(id));
     } else {
-      visibleIds.forEach(id => newSelection.add(id));
+      allIds.forEach(id => newSelection.add(id));
     }
     onSelectionChange(newSelection);
   };
@@ -60,8 +62,7 @@ export function DynamicTable({
     onSelectionChange(newSelection);
   };
 
-  const allVisibleSelected = visibleInstances.length > 0 && 
-    visibleInstances.every(i => selectedIds.has(i.id));
+  const allSelected = instances.length > 0 && instances.every(i => selectedIds.has(getSelectionId(i)));
 
   const toggleHeaderVisibility = (header: string) => {
     if (visibleHeaders.includes(header)) {
@@ -122,14 +123,15 @@ export function DynamicTable({
               <th className="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10">
                 <button
                   onClick={toggleSelectAll}
-                  className="flex items-center hover:text-blue-600 transition-colors"
-                  title={allVisibleSelected ? "Deselect all visible" : "Select all visible"}
+                  className="flex items-center gap-2 hover:text-blue-600 transition-colors"
+                  title={allSelected ? "Deselect all results" : "Select all results"}
                 >
-                  {allVisibleSelected ? (
+                  {allSelected ? (
                     <CheckSquare className="w-5 h-5 text-blue-600" />
                   ) : (
                     <Square className="w-5 h-5" />
                   )}
+                  <span className="text-xs font-medium uppercase tracking-wider text-gray-700">All</span>
                 </button>
               </th>
               {visibleHeaders.map(header => (
@@ -154,15 +156,15 @@ export function DynamicTable({
                 <tr
                   key={instance.id}
                   className={`hover:bg-gray-50 transition-colors ${
-                    selectedIds.has(instance.id) ? 'bg-blue-50' : ''
+                    selectedIds.has(getSelectionId(instance)) ? 'bg-blue-50' : ''
                   }`}
                 >
                   <td className="px-4 py-3 sticky left-0 bg-inherit z-10">
                     <button
-                      onClick={() => toggleSelectOne(instance.id)}
+                      onClick={() => toggleSelectOne(getSelectionId(instance))}
                       className="flex items-center hover:text-blue-600 transition-colors"
                     >
-                      {selectedIds.has(instance.id) ? (
+                      {selectedIds.has(getSelectionId(instance)) ? (
                         <CheckSquare className="w-5 h-5 text-blue-600" />
                       ) : (
                         <Square className="w-5 h-5" />
