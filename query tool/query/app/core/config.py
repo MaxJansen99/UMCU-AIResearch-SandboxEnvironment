@@ -24,6 +24,7 @@ class Settings:
     db_name: str = os.environ.get("DB_NAME", "dicom_query")
     db_user: str = os.environ.get("DB_USER", "dicom_query")
     db_password: str = os.environ.get("DB_PASSWORD", "dicom_query")
+    approved_export_root: str = os.environ.get("APPROVED_EXPORT_ROOT", "/approved_exports")
 
     @property
     def auth(self) -> tuple[str, str] | None:

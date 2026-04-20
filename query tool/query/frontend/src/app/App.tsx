@@ -446,13 +446,14 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
                       <th className="px-3 py-2">Titel</th>
                       <th className="px-3 py-2">Status</th>
                       <th className="px-3 py-2">Studies</th>
+                      <th className="px-3 py-2">Export</th>
                       <th className="px-3 py-2">Reason</th>
                     </tr>
                   </thead>
                   <tbody>
                     {myRequests.length === 0 ? (
                       <tr>
-                        <td className="px-3 py-4 text-gray-600" colSpan={5}>
+                        <td className="px-3 py-4 text-gray-600" colSpan={6}>
                           Nog geen aanvragen.
                         </td>
                       </tr>
@@ -467,6 +468,15 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
                             </span>
                           </td>
                           <td className="px-3 py-2">{request.items.length}</td>
+                          <td className="px-3 py-2">
+                            {request.export ? (
+                              <span className={`rounded px-2 py-1 text-xs font-medium ${exportClass(request.export.status)}`}>
+                                {request.export.status}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-gray-700">{request.approval?.reason || '-'}</td>
                         </tr>
                       ))
@@ -504,4 +514,10 @@ function statusClass(status: SelectionRequest['status']): string {
   if (status === 'REJECTED') return 'bg-red-100 text-red-700';
   if (status === 'SUBMITTED') return 'bg-blue-100 text-blue-700';
   return 'bg-gray-100 text-gray-700';
+}
+
+function exportClass(status: NonNullable<SelectionRequest['export']>['status']): string {
+  if (status === 'READY') return 'bg-green-100 text-green-700';
+  if (status === 'FAILED') return 'bg-red-100 text-red-700';
+  return 'bg-yellow-100 text-yellow-700';
 }

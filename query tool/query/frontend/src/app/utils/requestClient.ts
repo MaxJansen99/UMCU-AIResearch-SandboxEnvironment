@@ -15,6 +15,15 @@ export type SelectionRequest = {
   created_at: string;
   items: Array<{ id: number; orthanc_study_id: string }>;
   approval: ApprovalInfo | null;
+  export: {
+    id: number;
+    status: 'PENDING' | 'READY' | 'FAILED';
+    export_path: string | null;
+    manifest_path: string | null;
+    error: string | null;
+    request_hash: string | null;
+    reused_from_export_id: number | null;
+  } | null;
 };
 
 function authToken(): string {

@@ -3,6 +3,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from app.services.database import Database
+from app.services.export_service import ExportService, export_from_row
 from app.services.orthanc_client import OrthancClient
 
 
@@ -23,9 +24,15 @@ class ForbiddenMutationError(WorkflowError):
 
 
 class RequestWorkflowService:
-    def __init__(self, database: Database, orthanc: OrthancClient | None = None) -> None:
+    def __init__(
+        self,
+        database: Database,
+        orthanc: OrthancClient | None = None,
+        export_service: ExportService | None = None,
+    ) -> None:
         self.database = database
         self.orthanc = orthanc
+        self.export_service = export_service
 
     def create_request(self, user: dict[str, Any], title: str, filters_json: dict[str, Any] | None) -> dict[str, Any]:
         with self.database.connect() as conn:
@@ -139,7 +146,12 @@ class RequestWorkflowService:
                 )
                 conn.commit()
 
-        return self.get_request(request_id)
+        updated_request = self.get_request(request_id)
+        if normalized_decision == "APPROVED" and self.export_service is not None:
+            export = self.export_service.prepare_approved_export(updated_request, user)
+            updated_request["export"] = export
+
+        return updated_request
 
     def get_request(self, request_id: int) -> dict[str, Any]:
         with self.database.connect() as conn:
@@ -159,6 +171,7 @@ class RequestWorkflowService:
                 request = request_from_row(request_row)
                 request["items"] = self._items_for_request(cur, request_id)
                 request["approval"] = self._approval_for_request(cur, request_id)
+                request["export"] = self._export_for_request(cur, request_id)
                 return request
 
     def _list_requests(self, query: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
@@ -169,6 +182,7 @@ class RequestWorkflowService:
                 for request in requests:
                     request["items"] = self._items_for_request(cur, request["id"])
                     request["approval"] = self._approval_for_request(cur, request["id"])
+                    request["export"] = self._export_for_request(cur, request["id"])
                 return requests
 
     def _items_for_request(self, cur: Any, request_id: int) -> list[dict[str, Any]]:
@@ -240,6 +254,21 @@ class RequestWorkflowService:
             "reason": row[4],
             "decided_at": row[5].isoformat(),
         }
+
+    def _export_for_request(self, cur: Any, request_id: int) -> dict[str, Any] | None:
+        cur.execute(
+            """
+            SELECT id, request_id, status, export_path, manifest_path, error, created_at, updated_at,
+                   request_hash, reused_from_export_id
+            FROM request_exports
+            WHERE request_id = %s
+            """,
+            (request_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return export_from_row(row)
 
     def _ensure_owner(self, request: dict[str, Any], user: dict[str, Any]) -> None:
         if request["created_by_user_id"] != user["id"]:

@@ -1,3 +1,13 @@
+# Repository Note
+
+De actuele projectdocumentatie voor de UMC Radiologie Query Tool PoC staat in:
+
+```text
+query tool/readme.md
+```
+
+Gebruik dat bestand als primaire context voor developers of AI agents. De sectie hieronder beschrijft een oudere Docker Registry sandbox die nog in de repository aanwezig is, maar niet de huidige Query Tool PoC documenteert.
+
 # Docker Registry Sandbox Environment
 
 ## Description

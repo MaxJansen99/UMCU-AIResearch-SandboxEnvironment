@@ -24,6 +24,14 @@ type PendingRequest = {
     decision: string;
     reason: string | null;
   } | null;
+  export?: {
+    status: 'PENDING' | 'READY' | 'FAILED';
+    export_path: string | null;
+    manifest_path: string | null;
+    error: string | null;
+    request_hash: string | null;
+    reused_from_export_id: number | null;
+  } | null;
 };
 
 type DatamanagerPageProps = {
@@ -211,6 +219,15 @@ export function DatamanagerPage({ user, onLogout }: DatamanagerPageProps) {
                 <p className="text-sm text-gray-600">
                   Status: <span className="font-medium">{selectedRequest.status}</span>
                 </p>
+                {selectedRequest.export && (
+                  <p className="mt-1 text-sm text-gray-600">
+                    Export: <span className="font-medium">{selectedRequest.export.status}</span>
+                    {selectedRequest.export.manifest_path ? ` - ${selectedRequest.export.manifest_path}` : ''}
+                    {selectedRequest.export.reused_from_export_id
+                      ? ` - reused from export #${selectedRequest.export.reused_from_export_id}`
+                      : ''}
+                  </p>
+                )}
               </div>
 
               {decisionMessage && (

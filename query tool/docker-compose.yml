@@ -48,9 +48,11 @@ services:
       DB_NAME: "dicom_query"
       DB_USER: "dicom_query"
       DB_PASSWORD: "dicom_query"
+      APPROVED_EXPORT_ROOT: "/approved_exports"
     volumes:
       - ./idc-data:/data:ro
       - query_certs:/certs
+      - approved_exports:/approved_exports
     networks:
       - dicom-net
     depends_on:
@@ -58,8 +60,6 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
-      dicom-importer:
-        condition: service_completed_successfully
 
   postgres:
     image: postgres:16-alpine
@@ -81,6 +81,8 @@ services:
       retries: 10
 
   dicom-importer:
+    profiles:
+      - import
     image: python:3.11-slim
     container_name: dicom-importer
     working_dir: /app
@@ -100,6 +102,8 @@ services:
     restart: "no"
 
   test-client:
+    profiles:
+      - test
     image: curlimages/curl:latest
     container_name: test-client
     depends_on:
@@ -113,6 +117,7 @@ volumes:
   orthanc-db:
   orthanc-config:
   postgres-db:
+  approved_exports:
 
 networks:
   dicom-net:

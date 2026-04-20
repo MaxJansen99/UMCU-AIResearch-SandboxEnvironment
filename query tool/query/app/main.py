@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.core.tls import create_ssl_context
 from app.services.auth import AuthService
 from app.services.database import Database
+from app.services.export_service import ExportService
 from app.services.orthanc_client import OrthancClient
 from app.services.query_service import QueryService
 from app.services.request_workflow import RequestWorkflowService
@@ -31,7 +32,8 @@ def main() -> None:
     database = Database(settings.db_connection_info)
     database.initialize()
     auth_service = AuthService(database)
-    request_workflow = RequestWorkflowService(database, orthanc)
+    export_service = ExportService(database, settings.approved_export_root, orthanc)
+    request_workflow = RequestWorkflowService(database, orthanc, export_service)
 
     if settings.collect_stats_on_startup:
         collect_and_save_stats(query_service, settings.stats_file)

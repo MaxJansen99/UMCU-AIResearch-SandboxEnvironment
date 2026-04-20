@@ -41,3 +41,8 @@ class OrthancClient:
     def get_instance_tags(self, instance_id: str) -> dict[str, Any]:
         result = self.get(f"/instances/{instance_id}/tags")
         return result if isinstance(result, dict) else {}
+
+    def get_instance_file(self, instance_id: str) -> bytes:
+        response = requests.get(f"{self.base_url}/instances/{instance_id}/file", auth=self.auth, timeout=self.timeout)
+        response.raise_for_status()
+        return response.content
