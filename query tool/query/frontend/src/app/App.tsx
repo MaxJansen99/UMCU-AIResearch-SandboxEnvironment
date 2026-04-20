@@ -102,6 +102,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
   const [allInstances, setAllInstances] = useState<DicomInstance[]>([]);
   const [filteredInstances, setFilteredInstances] = useState<DicomInstance[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedStudyIdsBySeriesId, setSelectedStudyIdsBySeriesId] = useState<Map<string, string>>(new Map());
   const [activeFilters, setActiveFilters] = useState<Array<{ header: string; value: any }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -139,7 +140,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
     }
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async (filtersToApply = activeFilters) => {
     if (!stats) return;
     
     setIsLoading(true);
@@ -148,7 +149,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
     // Convert activeFilters to DynamicFiltersType format
     const filters: DynamicFiltersType = {};
     
-    for (const filter of activeFilters) {
+    for (const filter of filtersToApply) {
       const { header, value } = filter;
       
       // Determine filter type
@@ -183,7 +184,6 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
       setStats(result.stats);
       setAllInstances(result.instances);
       setFilteredInstances(result.instances);
-      setSelectedIds(new Set());
     } catch (error) {
       console.error('Error querying DICOM metadata:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -201,9 +201,27 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
     }
   };
 
+  const handleSelectionChange = (nextSelectedIds: Set<string>) => {
+    const visibleStudyIdsBySeriesId = new Map(
+      filteredInstances.map((instance) => [instance.id, getOrthancStudyId(instance)]),
+    );
+
+    setSelectedIds(nextSelectedIds);
+    setSelectedStudyIdsBySeriesId((current) => {
+      const next = new Map(current);
+      for (const [seriesId, studyId] of visibleStudyIdsBySeriesId.entries()) {
+        if (nextSelectedIds.has(seriesId)) {
+          next.set(seriesId, studyId);
+        } else {
+          next.delete(seriesId);
+        }
+      }
+      return next;
+    });
+  };
+
   const handleSubmitForApproval = async () => {
-    const selectedRows = filteredInstances.filter((instance) => selectedIds.has(instance.id));
-    const orthancStudyIds = uniqueValues(selectedRows.map(getOrthancStudyId));
+    const orthancStudyIds = uniqueValues(Array.from(selectedStudyIdsBySeriesId.values()));
     if (orthancStudyIds.length === 0) {
       setRequestError('Selecteer minimaal een study.');
       setRequestMessage(null);
@@ -224,6 +242,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
       const submitted = await submitSelectionRequest(created.id);
       setRequestMessage(`Aanvraag #${submitted.id} is verstuurd met status ${submitted.status}.`);
       setSelectedIds(new Set());
+      setSelectedStudyIdsBySeriesId(new Map());
       setRequestTitle('');
       await loadMyRequests();
     } catch (error) {
@@ -235,7 +254,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
   };
 
   const selectedInstances = filteredInstances.filter(i => selectedIds.has(i.id));
-  const selectedStudyCount = uniqueValues(selectedInstances.map(getOrthancStudyId)).length;
+  const selectedStudyCount = uniqueValues(Array.from(selectedStudyIdsBySeriesId.values())).length;
   const resultStudyCount = uniqueValues(filteredInstances.map(getOrthancStudyId)).length;
 
   const allHeaders = stats ? [...Object.keys(stats.stats), 'Images'] : [];
@@ -268,7 +287,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
             <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Made by</span>
             <img src={huLogo} alt="Hogeschool Utrecht" className="h-12 w-auto object-contain sm:h-24" />
           </div>
-          <div className="mt-4 flex items-center justify-center gap-3 sm:absolute sm:right-6 sm:bottom-3 sm:mt-0">
+          <div className="mt-3 flex items-center justify-center gap-3">
             <span className="text-xs text-gray-600">{user.username}</span>
             <button
               type="button"
@@ -350,7 +369,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
               instances={filteredInstances}
               allHeaders={allHeaders}
               selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
+              onSelectionChange={handleSelectionChange}
               currentPage={currentPage}
               pageSize={pageSize}
               onPageChange={setCurrentPage}

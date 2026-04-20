@@ -7,7 +7,7 @@ interface DynamicFiltersProps {
   stats: DicomStats | null;
   activeFilters: Array<{ header: string; value: any }>;
   onFiltersChange: (filters: Array<{ header: string; value: any }>) => void;
-  onSearch: () => void;
+  onSearch: (filters?: Array<{ header: string; value: any }>) => void;
   isLoading: boolean;
 }
 
@@ -210,7 +210,7 @@ export function DynamicFilters({
 
       <div className="mt-6 flex gap-3">
         <button
-          onClick={onSearch}
+          onClick={() => onSearch()}
           disabled={isLoading}
           className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
         >
@@ -220,7 +220,7 @@ export function DynamicFilters({
         <button
           onClick={() => {
             onFiltersChange([]);
-            onSearch();
+            onSearch([]);
           }}
           className="px-6 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
         >
