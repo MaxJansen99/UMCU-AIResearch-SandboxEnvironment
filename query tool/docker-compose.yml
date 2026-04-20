@@ -1,4 +1,17 @@
 services:
+  frontend:
+    build:
+      context: ./query/frontend
+      dockerfile: Dockerfile
+    container_name: dicom-frontend
+    ports:
+      - "3000:80"
+    networks:
+      - dicom-net
+    depends_on:
+      dicom-query:
+        condition: service_started
+
   orthanc:
     image: jodogne/orthanc-plugins:latest
     container_name: orthanc

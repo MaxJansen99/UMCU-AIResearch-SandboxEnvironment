@@ -29,7 +29,7 @@ export async function loadOrthancMetadata(): Promise<QueryResult> {
 }
 
 export async function queryOrthancMetadata(filters: DynamicFilters): Promise<QueryResult> {
-  const response = await fetch('/query', {
+  const response = await fetch('/api/query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

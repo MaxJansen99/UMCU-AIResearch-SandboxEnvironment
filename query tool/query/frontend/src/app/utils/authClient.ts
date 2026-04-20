@@ -27,7 +27,7 @@ export function clearToken(): void {
 }
 
 export async function login(username: string, password: string): Promise<LoginResult> {
-  const response = await fetch('/auth/login', {
+  const response = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -46,7 +46,7 @@ export async function login(username: string, password: string): Promise<LoginRe
 }
 
 export async function me(token: string): Promise<AuthUser> {
-  const response = await fetch('/auth/me', {
+  const response = await fetch('/api/auth/me', {
     headers: authorizationHeaders(token),
   });
 

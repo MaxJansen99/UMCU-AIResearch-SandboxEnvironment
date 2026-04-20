@@ -48,7 +48,7 @@ export function DatamanagerPage({ user, onLogout }: DatamanagerPageProps) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/requests/pending', {
+      const response = await fetch('/api/requests/pending', {
         headers: authorizationHeaders(token),
       });
       const payload = await response.json();
@@ -94,7 +94,7 @@ export function DatamanagerPage({ user, onLogout }: DatamanagerPageProps) {
     setDecisionError(null);
     setDecisionMessage(null);
     try {
-      const response = await fetch(`/requests/${selectedRequest.id}/decision`, {
+      const response = await fetch(`/api/requests/${selectedRequest.id}/decision`, {
         method: 'POST',
         headers: {
           ...authorizationHeaders(token),

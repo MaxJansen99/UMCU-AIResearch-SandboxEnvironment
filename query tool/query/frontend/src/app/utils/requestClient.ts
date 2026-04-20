@@ -26,7 +26,7 @@ function authToken(): string {
 }
 
 async function jsonRequest<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(path, init);
+  const response = await fetch(`/api${path}`, init);
   const payload = await response.json();
   if (!response.ok || !payload.ok) {
     throw new Error(payload.error || 'Request mislukt.');
