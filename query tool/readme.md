@@ -293,6 +293,15 @@ app/services/auth.py
 - public user response
 - require_role helper
 
+app/repositories/users_repository.py
+- user lookup SQL
+
+app/repositories/requests_repository.py
+- selection request, items en approval SQL
+
+app/repositories/exports_repository.py
+- request export en export items SQL
+
 app/services/request_workflow.py
 - create request
 - add selected studies

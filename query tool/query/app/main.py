@@ -4,6 +4,9 @@ from pathlib import Path
 from app.api.server import QueryServer
 from app.core.config import settings
 from app.core.tls import create_ssl_context
+from app.repositories.exports_repository import ExportsRepository
+from app.repositories.requests_repository import RequestsRepository
+from app.repositories.users_repository import UsersRepository
 from app.services.auth import AuthService
 from app.services.database import Database
 from app.services.export_service import ExportService
@@ -31,9 +34,18 @@ def main() -> None:
     query_service = QueryService(orthanc)
     database = Database(settings.db_connection_info)
     database.initialize()
-    auth_service = AuthService(database)
-    export_service = ExportService(database, settings.approved_export_root, orthanc)
-    request_workflow = RequestWorkflowService(database, orthanc, export_service)
+    users_repository = UsersRepository()
+    requests_repository = RequestsRepository()
+    exports_repository = ExportsRepository()
+    auth_service = AuthService(database, users_repository)
+    export_service = ExportService(database, settings.approved_export_root, orthanc, exports_repository)
+    request_workflow = RequestWorkflowService(
+        database,
+        orthanc,
+        export_service,
+        requests_repository,
+        exports_repository,
+    )
 
     if settings.collect_stats_on_startup:
         collect_and_save_stats(query_service, settings.stats_file)

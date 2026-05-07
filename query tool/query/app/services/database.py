@@ -5,6 +5,8 @@ from typing import Any
 from passlib.context import CryptContext
 import psycopg
 
+from app.repositories.users_repository import UsersRepository
+
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -76,6 +78,7 @@ ON request_exports(request_hash);
 class Database:
     def __init__(self, connection_info: Mapping[str, str | int]) -> None:
         self.connection_info = dict(connection_info)
+        self.users = UsersRepository()
 
     def connect(self) -> psycopg.Connection:
         return psycopg.connect(**self.connection_info)
@@ -105,33 +108,11 @@ class Database:
 
     def find_user_by_username(self, username: str) -> dict[str, Any] | None:
         with self.connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT id, username, password_hash, role
-                    FROM users
-                    WHERE username = %s
-                    """,
-                    (username,),
-                )
-                row = cur.fetchone()
-
-        return self._user_from_row(row)
+            return self.users.find_by_username(conn, username)
 
     def find_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         with self.connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT id, username, password_hash, role
-                    FROM users
-                    WHERE id = %s
-                    """,
-                    (user_id,),
-                )
-                row = cur.fetchone()
-
-        return self._user_from_row(row)
+            return self.users.find_by_id(conn, user_id)
 
     def _seed_users(self, cur: psycopg.Cursor) -> None:
         demo_users = (
@@ -150,14 +131,3 @@ class Database:
                 """,
                 (username, password_hash, role),
             )
-
-    def _user_from_row(self, row: tuple[Any, ...] | None) -> dict[str, Any] | None:
-        if row is None:
-            return None
-        user_id, username, password_hash, role = row
-        return {
-            "id": user_id,
-            "username": username,
-            "password_hash": password_hash,
-            "role": role,
-        }

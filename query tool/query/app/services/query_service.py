@@ -48,6 +48,7 @@ class QueryService:
             if operator_name == "==":
                 query_body[tag_name] = expected
 
+        # geef series ID's die bij metadata selectie passen
         series_ids = self.orthanc.find_series(query_body)
         stats_counters: dict[str, Counter] = {tag: Counter() for tag in usable_stats_tags}
         matched: list[dict[str, Any]] = []

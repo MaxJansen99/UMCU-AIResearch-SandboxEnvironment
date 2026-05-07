@@ -24,6 +24,7 @@ class OrthancClient:
     def health(self) -> dict[str, Any]:
         return self.get("/statistics")
 
+    # lijst terug met id's en tags van instance
     def find_series(self, query: dict[str, Any] | None = None) -> list[str]:
         result = self.post("/tools/find", {"Level": "Series", "Query": query or {}})
         return result if isinstance(result, list) else []
