@@ -43,6 +43,7 @@ services:
       QUERY_PACS_URL: "http://orthanc:8042"
       QUERY_PACS_USER: "orthanc"
       QUERY_PACS_PASSWORD: "orthanc"
+      QUERY_COLLECT_STATS_ON_STARTUP: "false"
       DB_HOST: "postgres"
       DB_PORT: "5432"
       DB_NAME: "dicom_query"

@@ -4,7 +4,7 @@ from typing import Any
 
 from app.domain.operators import HIDDEN_TAGS, ALLOWED_TAGS, OPERATORS, FilterSpec, normalize_filter_specs
 from app.services.orthanc_client import OrthancClient
-from app.services.orthanc_tags import normalize_orthanc_dicom_tags, safe_get, safe_get_full
+from app.services.orthanc_tags import normalize_orthanc_dicom_tags, safe_get_full
 
 
 def _stats_key(value: Any) -> str:
@@ -40,7 +40,7 @@ class QueryService:
 
     def query(self, filters: list[FilterSpec], stats_tags: list[str]) -> dict[str, Any]:
         total_instances = self._instance_count()
-        usable_filters = [spec for spec in filters if spec[0] in stats_tags]
+        usable_filters = [spec for spec in filters if spec[0] in ALLOWED_TAGS]
         stats_tags = ALLOWED_TAGS
 
         query_body: dict[str, Any] = {}
@@ -52,17 +52,18 @@ class QueryService:
         series_ids = self.orthanc.find_series(query_body)
         stats_counters: dict[str, Counter] = {tag: Counter() for tag in stats_tags}
         matched: list[dict[str, Any]] = []
+        study_cache: dict[str, dict[str, Any]] = {}
 
         for series_id in series_ids:
             meta = self.orthanc.get_series(series_id)
-            meta = self._with_first_instance_tags(meta)
+            meta = self._with_study_tags(meta, study_cache)
             if not self._matches(meta, usable_filters):
                 continue
 
             matched.append({"id": series_id, "meta": meta})
 
             for tag in stats_tags:
-                value = safe_get(meta, tag)
+                value = safe_get_full(meta, tag)
                 if value is not None:
                     stats_counters[tag][_stats_key(value)] += 1
 
@@ -124,33 +125,36 @@ class QueryService:
         return True
 
     def _series_summary(self, series_id: str, meta: dict[str, Any]) -> dict[str, Any]:
-        tags = meta.get("MainDicomTags", {})
-        instance_tags = meta.get("DicomTags", {})
         return {
             "id": series_id,
             "orthanc_study_id": meta.get("ParentStudy", ""),
-            "study_instance_uid": tags.get("StudyInstanceUID", instance_tags.get("StudyInstanceUID", "")),
-            "series_instance_uid": tags.get("SeriesInstanceUID", instance_tags.get("SeriesInstanceUID", "")),
-            "modality": tags.get("Modality", instance_tags.get("Modality", "")),
-            "study_date": tags.get("StudyDate", instance_tags.get("StudyDate", "")),
-            "study_description": tags.get("StudyDescription", instance_tags.get("StudyDescription", "")),
-            "series_description": tags.get("SeriesDescription", instance_tags.get("SeriesDescription", "")),
-            "body_part_examined": tags.get("BodyPartExamined", instance_tags.get("BodyPartExamined", "")),
+            "study_instance_uid": safe_get_full(meta, "StudyInstanceUID") or "",
+            "series_instance_uid": safe_get_full(meta, "SeriesInstanceUID") or "",
+            "modality": safe_get_full(meta, "Modality") or "",
+            "patient_id": safe_get_full(meta, "PatientID") or "",
+            "patient_birth_date": safe_get_full(meta, "PatientBirthDate") or "",
+            "patient_sex": safe_get_full(meta, "PatientSex") or "",
+            "study_date": safe_get_full(meta, "StudyDate") or "",
+            "study_description": safe_get_full(meta, "StudyDescription") or "",
+            "series_description": safe_get_full(meta, "SeriesDescription") or "",
+            "body_part_examined": safe_get_full(meta, "BodyPartExamined") or "",
             "instances": len(meta.get("Instances", [])),
         }
 
-    def _with_first_instance_tags(self, meta: dict[str, Any]) -> dict[str, Any]:
-        if meta.get("DicomTags"):
+    def _with_study_tags(self, meta: dict[str, Any], study_cache: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        study_id = meta.get("ParentStudy")
+        if not study_id:
             return meta
 
-        instance_ids = meta.get("Instances", [])
-        if instance_ids:
+        if study_id not in study_cache:
             try:
-                return {
-                    **meta,
-                    "DicomTags": normalize_orthanc_dicom_tags(self.orthanc.get_instance_tags(instance_ids[0])),
-                }
+                study_cache[study_id] = self.orthanc.get_study(str(study_id))
             except Exception:
-                return meta
+                study_cache[study_id] = {}
 
-        return meta
+        study = study_cache[study_id]
+        return {
+            **meta,
+            "StudyMainDicomTags": study.get("MainDicomTags", {}),
+            "PatientMainDicomTags": study.get("PatientMainDicomTags", {}),
+        }

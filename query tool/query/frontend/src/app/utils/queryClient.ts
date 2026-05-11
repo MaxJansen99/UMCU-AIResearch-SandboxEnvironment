@@ -2,10 +2,9 @@ import type { DicomInstance, DicomStats, DynamicFilters } from './dicomLoader';
 
 export const CORE_METADATA_TAGS = [
   'Modality',
-  'StudyDate',
-  'StudyDescription',
-  'SeriesDescription',
+  'PatientBirthDate',
   'BodyPartExamined',
+  'PatientSex',
 ] as const;
 
 type QueryResponse = {
@@ -66,7 +65,11 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
   const backendFilters: Array<[string, string, unknown]> = [];
 
   for (const [header, config] of Object.entries(filters)) {
-    if (config.value !== undefined && config.value !== '') {
+    if (config.type === 'ageGroup' && Array.isArray(config.value) && config.value.length > 0) {
+      backendFilters.push([header, 'date in ranges', ageGroupsToBirthDateRanges(config.value)]);
+    } else if (Array.isArray(config.value) && config.value.length > 0) {
+      backendFilters.push([header, 'in', config.value]);
+    } else if (config.value !== undefined && config.value !== '') {
       if (config.type === 'text') {
         backendFilters.push([header, 'contains', config.value]);
       } else {
@@ -85,15 +88,54 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
   return backendFilters;
 }
 
+function ageGroupsToBirthDateRanges(ageGroups: string[]): Array<{ min?: string; max?: string }> {
+  return ageGroups.map(ageGroupToBirthDateRange).filter(Boolean) as Array<{ min?: string; max?: string }>;
+}
+
+function ageGroupToBirthDateRange(ageGroup: string): { min?: string; max?: string } | undefined {
+  const today = new Date();
+
+  if (ageGroup === '0-18') {
+    return { min: toDicomDate(addYears(today, -18)) };
+  }
+  if (ageGroup === '18-40') {
+    return { min: toDicomDate(addYears(today, -40)), max: toDicomDate(addYears(today, -18)) };
+  }
+  if (ageGroup === '40-65') {
+    return { min: toDicomDate(addYears(today, -65)), max: toDicomDate(addYears(today, -40)) };
+  }
+  if (ageGroup === '65+') {
+    return { max: toDicomDate(addYears(today, -65)) };
+  }
+
+  return undefined;
+}
+
+function addYears(date: Date, years: number): Date {
+  const nextDate = new Date(date);
+  nextDate.setFullYear(nextDate.getFullYear() + years);
+  return nextDate;
+}
+
+function toDicomDate(date: Date): string {
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+}
+
 function toDicomInstance(series: Record<string, unknown>): DicomInstance {
   return {
     id: String(series.id || series.series_instance_uid || randomId()),
     OrthancStudyID: stringValue(series.orthanc_study_id),
     Modality: stringValue(series.modality),
+    PatientID: stringValue(series.patient_id),
+    PatientBirthDate: stringValue(series.patient_birth_date),
+    BodyPartExamined: stringValue(series.body_part_examined),
+    PatientSex: stringValue(series.patient_sex),
     StudyDate: stringValue(series.study_date),
     StudyDescription: stringValue(series.study_description),
     SeriesDescription: stringValue(series.series_description),
-    BodyPartExamined: stringValue(series.body_part_examined),
     Images: numberValue(series.instances),
     StudyInstanceUID: stringValue(series.study_instance_uid),
     SeriesInstanceUID: stringValue(series.series_instance_uid),

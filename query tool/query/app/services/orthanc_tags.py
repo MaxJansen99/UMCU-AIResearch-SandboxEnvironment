@@ -31,6 +31,12 @@ def safe_get(meta: dict[str, Any], key: str) -> Any:
     main_tags = meta.get("MainDicomTags", {})
     if key in main_tags:
         return main_tags[key]
+    study_tags = meta.get("StudyMainDicomTags", {})
+    if key in study_tags:
+        return study_tags[key]
+    patient_tags = meta.get("PatientMainDicomTags", {})
+    if key in patient_tags:
+        return patient_tags[key]
     return meta.get(key)
 
 
@@ -38,6 +44,14 @@ def safe_get_full(meta: dict[str, Any], key: str) -> Any:
     main_tags = meta.get("MainDicomTags", {})
     if key in main_tags:
         return main_tags[key]
+
+    study_tags = meta.get("StudyMainDicomTags", {})
+    if key in study_tags:
+        return study_tags[key]
+
+    patient_tags = meta.get("PatientMainDicomTags", {})
+    if key in patient_tags:
+        return patient_tags[key]
 
     dicom_tags = meta.get("DicomTags", {})
     if isinstance(dicom_tags, dict):

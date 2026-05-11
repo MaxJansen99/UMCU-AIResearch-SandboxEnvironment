@@ -109,10 +109,12 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
   const [currentPage, setCurrentPage] = useState(0);
   const [requestTitle, setRequestTitle] = useState('');
   const [myRequests, setMyRequests] = useState<SelectionRequest[]>([]);
+  const [myRequestsPage, setMyRequestsPage] = useState(0);
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const pageSize = 25;
+  const requestPageSize = 10;
 
   // Load stats on mount
   useEffect(() => {
@@ -153,7 +155,17 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
       const { header, value } = filter;
       
       // Determine filter type
-      if (typeof value === 'object' && (value.min !== undefined || value.max !== undefined)) {
+      if (header === 'PatientBirthDate' && Array.isArray(value)) {
+        filters[header] = {
+          type: 'ageGroup',
+          value
+        };
+      } else if (Array.isArray(value)) {
+        filters[header] = {
+          type: 'categorical',
+          value
+        };
+      } else if (typeof value === 'object' && (value.min !== undefined || value.max !== undefined)) {
         // Numeric range filter
         filters[header] = {
           type: 'numeric',
@@ -195,7 +207,9 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
 
   const loadMyRequests = async () => {
     try {
-      setMyRequests(await listMySelectionRequests());
+      const requests = await listMySelectionRequests();
+      setMyRequests(requests);
+      setMyRequestsPage((current) => Math.min(current, Math.max(0, Math.ceil(requests.length / requestPageSize) - 1)));
     } catch (error) {
       console.error('Error loading selection requests:', error);
     }
@@ -256,8 +270,12 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
   const selectedInstances = filteredInstances.filter(i => selectedIds.has(i.id));
   const selectedStudyCount = uniqueValues(Array.from(selectedStudyIdsBySeriesId.values())).length;
   const resultStudyCount = uniqueValues(filteredInstances.map(getOrthancStudyId)).length;
+  const myRequestsTotalPages = Math.max(1, Math.ceil(myRequests.length / requestPageSize));
+  const safeMyRequestsPage = Math.min(myRequestsPage, myRequestsTotalPages - 1);
+  const myRequestsStart = safeMyRequestsPage * requestPageSize;
+  const visibleMyRequests = myRequests.slice(myRequestsStart, myRequestsStart + requestPageSize);
 
-  const allHeaders = stats ? [...Object.keys(stats.stats), 'Images'] : [];
+  const allHeaders = stats ? [...Object.keys(stats.stats), 'PatientID', 'SeriesDescription', 'StudyInstanceUID', 'Images'] : [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -458,7 +476,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
                         </td>
                       </tr>
                     ) : (
-                      myRequests.map((request) => (
+                      visibleMyRequests.map((request) => (
                         <tr key={request.id} className="border-t border-gray-200">
                           <td className="px-3 py-2">{request.id}</td>
                           <td className="px-3 py-2">{request.title}</td>
@@ -484,6 +502,34 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
                   </tbody>
                 </table>
               </div>
+              {myRequests.length > requestPageSize && (
+                <div className="mt-3 flex flex-col gap-2 border-t border-gray-200 pt-3 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    {myRequestsStart + 1}-{Math.min(myRequestsStart + requestPageSize, myRequests.length)} van {myRequests.length} aanvragen
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMyRequestsPage((page) => Math.max(0, page - 1))}
+                      disabled={safeMyRequestsPage === 0}
+                      className="rounded-md border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Vorige
+                    </button>
+                    <span className="min-w-20 text-center text-gray-600">
+                      Pagina {safeMyRequestsPage + 1} van {myRequestsTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setMyRequestsPage((page) => Math.min(myRequestsTotalPages - 1, page + 1))}
+                      disabled={safeMyRequestsPage >= myRequestsTotalPages - 1}
+                      className="rounded-md border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Volgende
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Statistics Panel */}

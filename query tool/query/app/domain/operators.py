@@ -25,6 +25,28 @@ def _not_in(actual: Any, expected: Any) -> bool:
     return actual is not None and expected is not None and actual not in expected
 
 
+def _date_in_ranges(actual: Any, expected: Any) -> bool:
+    if actual is None or not isinstance(expected, list):
+        return False
+
+    actual_value = str(actual)
+    if len(actual_value) != 8 or not actual_value.isdigit():
+        return False
+
+    for date_range in expected:
+        if not isinstance(date_range, dict):
+            continue
+        min_value = date_range.get("min")
+        max_value = date_range.get("max")
+        if min_value is not None and actual_value < str(min_value):
+            continue
+        if max_value is not None and actual_value > str(max_value):
+            continue
+        return True
+
+    return False
+
+
 OPERATORS: dict[str, FilterOperator] = {
     "==": lambda actual, expected: actual == expected,
     "!=": lambda actual, expected: actual != expected,
@@ -37,6 +59,7 @@ OPERATORS: dict[str, FilterOperator] = {
     "endswith": _endswith,
     "in": _in,
     "not in": _not_in,
+    "date in ranges": _date_in_ranges,
     "is None": lambda actual, _: actual is None,
     "not None": lambda actual, _: actual is not None,
 }
@@ -63,18 +86,15 @@ HIDDEN_TAGS = {
     "DeidentificationMethodCodeSequence",
     "ImageOrientationPatient",
     "PatientName",
-    "PatientID",
-    "PatientBirthDate",
     "AccessionNumber",
     "ReferringPhysicianName",
 }
 
 ALLOWED_TAGS = [
-    "StudyInstanceUID",
     "Modality",
-    "PatientSex",
     "PatientBirthDate",
-    "BodyPartExamined"  # TODO: anotimical region, actual tag to be determined
+    "BodyPartExamined",
+    "PatientSex",
 ]
 
 

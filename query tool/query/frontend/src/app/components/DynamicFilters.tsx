@@ -11,6 +11,44 @@ interface DynamicFiltersProps {
   isLoading: boolean;
 }
 
+type FilterOption = {
+  value: string;
+  label: string;
+};
+
+const PRESET_FILTER_OPTIONS: Record<string, FilterOption[]> = {
+  Modality: [
+    { value: 'MR', label: 'MRI' },
+    { value: 'CT', label: 'CT' },
+    { value: 'US', label: 'Ultrasound' },
+    { value: 'XR', label: 'X-ray' },
+    { value: 'PT', label: 'PET' },
+    { value: 'NM', label: 'Nuclear medicine' },
+  ],
+  PatientSex: [
+    { value: 'M', label: 'Male' },
+    { value: 'F', label: 'Female' },
+  ],
+  PatientBirthDate: [
+    { value: '0-18', label: '0-18' },
+    { value: '18-40', label: '18-40' },
+    { value: '40-65', label: '40-65' },
+    { value: '65+', label: '65+' },
+  ],
+  BodyPartExamined: [
+    { value: 'BRAIN', label: 'Brain' },
+    { value: 'CHEST', label: 'Chest' },
+    { value: 'ABDOMEN', label: 'Abdomen' },
+    { value: 'PELVIS', label: 'Pelvis' },
+    { value: 'SPINE', label: 'Spine' },
+    { value: 'HEART', label: 'Cardiac' },
+    { value: 'BREAST', label: 'Breast' },
+    { value: 'EXTREMITY', label: 'Extremity' },
+    { value: 'VASCULAR', label: 'Vascular' },
+    { value: '', label: 'Unknown' },
+  ],
+};
+
 export function DynamicFilters({ 
   stats, 
   activeFilters, 
@@ -18,10 +56,12 @@ export function DynamicFilters({
   onSearch, 
   isLoading 
 }: DynamicFiltersProps) {
+  const dateRangeHeaders = new Set(['StudyDate']);
+
   // Get the core metadata headers from stats dynamically.
   const defaultHeaders = useMemo(() => {
     if (!stats) return [];
-    return Object.keys(stats.stats).slice(0, 5);
+    return Object.keys(stats.stats).slice(0, 4);
   }, [stats]);
 
   const [selectedHeaders, setSelectedHeaders] = useState<string[]>([]);
@@ -63,13 +103,15 @@ export function DynamicFilters({
 
   const updateFilter = (header: string, value: any) => {
     const existing = activeFilters.filter(f => f.header !== header);
+    const isEmptyArray = Array.isArray(value) && value.length === 0;
     const isEmptyObject =
+      !Array.isArray(value) &&
       typeof value === 'object' &&
       value !== null &&
       value.min === undefined &&
       value.max === undefined;
 
-    if (value !== undefined && value !== '' && value !== null && !isEmptyObject) {
+    if (value !== undefined && value !== '' && value !== null && !isEmptyObject && !isEmptyArray) {
       onFiltersChange([...existing, { header, value }]);
     } else {
       onFiltersChange(existing);
@@ -79,6 +121,20 @@ export function DynamicFilters({
   const getFilterValue = (header: string) => {
     const filter = activeFilters.find(f => f.header === header);
     return filter?.value;
+  };
+
+  const toggleCategoricalValue = (header: string, option: string) => {
+    const currentValue = getFilterValue(header);
+    const selectedValues = Array.isArray(currentValue)
+      ? currentValue
+      : currentValue
+        ? [String(currentValue)]
+        : [];
+    const nextValues = selectedValues.includes(option)
+      ? selectedValues.filter(value => value !== option)
+      : [...selectedValues, option];
+
+    updateFilter(header, nextValues);
   };
 
   if (!stats) {
@@ -107,7 +163,7 @@ export function DynamicFilters({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {selectedHeaders.map(header => {
-          const config = filterConfigs.get(header);
+          const config = getPresetFilterConfig(header) || filterConfigs.get(header);
           if (!config) return null;
 
           const currentValue = getFilterValue(header);
@@ -127,12 +183,12 @@ export function DynamicFilters({
                 </button>
               </div>
 
-              {header === 'StudyDate' && (
+              {dateRangeHeaders.has(header) && (
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="date"
-                    min="2000-01-01"
-                    aria-label="Study date from"
+                    min="1900-01-01"
+                    aria-label={`${formatHeaderLabel(header)} from`}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     value={toDateInputValue(currentValue?.min)}
                     onChange={(e) => {
@@ -142,8 +198,8 @@ export function DynamicFilters({
                   />
                   <input
                     type="date"
-                    min="2000-01-01"
-                    aria-label="Study date to"
+                    min="1900-01-01"
+                    aria-label={`${formatHeaderLabel(header)} to`}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     value={toDateInputValue(currentValue?.max)}
                     onChange={(e) => {
@@ -154,22 +210,31 @@ export function DynamicFilters({
                 </div>
               )}
 
-              {header !== 'StudyDate' && config.type === 'categorical' && (
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  value={currentValue || ''}
-                  onChange={(e) => updateFilter(header, e.target.value || undefined)}
-                >
-                  <option value="">All</option>
-                  {config.values.map(val => (
-                    <option key={val} value={val}>
-                      {val || '(empty)'}
-                    </option>
-                  ))}
-                </select>
+              {!dateRangeHeaders.has(header) && config.type === 'categorical' && (
+                <div className="max-h-36 overflow-y-auto rounded-md border border-gray-300 bg-white p-2">
+                  {getCategoricalOptions(header, config).map(option => {
+                    const selectedValues = Array.isArray(currentValue)
+                      ? currentValue
+                      : currentValue
+                        ? [String(currentValue)]
+                        : [];
+
+                    return (
+                      <label key={option.value || '__unknown__'} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={selectedValues.includes(option.value)}
+                          onChange={() => toggleCategoricalValue(header, option.value)}
+                          className="rounded border-gray-300"
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               )}
 
-              {header !== 'StudyDate' && config.type === 'text' && (
+              {!dateRangeHeaders.has(header) && config.type === 'text' && (
                 <input
                   type="text"
                   placeholder={`Search ${header}...`}
@@ -179,7 +244,7 @@ export function DynamicFilters({
                 />
               )}
 
-              {header !== 'StudyDate' && config.type === 'numeric' && (
+              {!dateRangeHeaders.has(header) && config.type === 'numeric' && (
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -239,9 +304,7 @@ export function DynamicFilters({
                 key={idx}
                 className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded"
               >
-                {formatHeaderLabel(filter.header)}: {typeof filter.value === 'object' 
-                  ? `${filter.value.min || '∞'} - ${filter.value.max || '∞'}`
-                  : filter.value}
+                {formatHeaderLabel(filter.header)}: {formatActiveFilterValue(filter.value)}
               </span>
             ))}
           </div>
@@ -261,4 +324,39 @@ function toDateInputValue(value: unknown): string {
     return '';
   }
   return `${rawValue.slice(0, 4)}-${rawValue.slice(4, 6)}-${rawValue.slice(6, 8)}`;
+}
+
+function formatActiveFilterValue(value: any): string {
+  if (Array.isArray(value)) {
+    return value.join(', ');
+  }
+  if (typeof value === 'object' && value !== null) {
+    return `${value.min || 'any'} - ${value.max || 'any'}`;
+  }
+  return String(value);
+}
+
+function getCategoricalOptions(header: string, config: FilterConfig): FilterOption[] {
+  const presetOptions = PRESET_FILTER_OPTIONS[header];
+  if (presetOptions) {
+    return presetOptions;
+  }
+
+  return config.values.map(value => ({
+    value,
+    label: value || 'Unknown',
+  }));
+}
+
+function getPresetFilterConfig(header: string): FilterConfig | undefined {
+  const presetOptions = PRESET_FILTER_OPTIONS[header];
+  if (!presetOptions) {
+    return undefined;
+  }
+
+  return {
+    headerName: header,
+    values: presetOptions.map(option => option.value),
+    type: 'categorical',
+  };
 }

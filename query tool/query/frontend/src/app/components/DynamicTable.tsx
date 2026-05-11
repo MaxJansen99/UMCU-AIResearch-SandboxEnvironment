@@ -1,4 +1,4 @@
-import { CheckSquare, Square, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { CheckSquare, Square, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DicomInstance } from '../utils/dicomLoader';
 import { formatDisplayValue, formatHeaderLabel } from '../utils/formatters';
 import { useEffect, useState } from 'react';
@@ -24,11 +24,9 @@ export function DynamicTable({
   onPageChange,
   getSelectionId = (instance) => instance.id
 }: DynamicTableProps) {
-  // Get first 6 headers from stats dynamically as default visible columns
-  const defaultVisibleHeaders = allHeaders.slice(0, 6);
+  const defaultVisibleHeaders = allHeaders;
   
   const [visibleHeaders, setVisibleHeaders] = useState<string[]>(defaultVisibleHeaders);
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
 
   useEffect(() => {
     setVisibleHeaders(defaultVisibleHeaders);
@@ -64,14 +62,6 @@ export function DynamicTable({
 
   const allSelected = instances.length > 0 && instances.every(i => selectedIds.has(getSelectionId(i)));
 
-  const toggleHeaderVisibility = (header: string) => {
-    if (visibleHeaders.includes(header)) {
-      setVisibleHeaders(visibleHeaders.filter(h => h !== header));
-    } else {
-      setVisibleHeaders([...visibleHeaders, header]);
-    }
-  };
-
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       <div className="p-4 border-b border-gray-200">
@@ -83,37 +73,11 @@ export function DynamicTable({
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowColumnSelector(!showColumnSelector)}
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-            >
-              <Eye className="w-4 h-4" />
-              Columns ({visibleHeaders.length})
-            </button>
             <div className="text-sm text-gray-600">
               Showing {startIndex + 1}-{endIndex} of {instances.length}
             </div>
           </div>
         </div>
-
-        {showColumnSelector && (
-          <div className="mt-3 p-3 bg-gray-50 rounded-md">
-            <div className="text-xs font-medium text-gray-700 mb-2">Select columns to display:</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-60 overflow-y-auto">
-              {allHeaders.map(header => (
-                <label key={header} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-100 p-1 rounded">
-                  <input
-                    type="checkbox"
-                    checked={visibleHeaders.includes(header)}
-                    onChange={() => toggleHeaderVisibility(header)}
-                    className="rounded"
-                  />
-                  <span className="truncate" title={header}>{formatHeaderLabel(header)}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="overflow-x-auto">

@@ -49,7 +49,7 @@ export function DynamicStatsPanel({ instances, selectedInstances, allHeaders }: 
     if (entries.length <= 10 && !isNumeric) {
       // Categorical - use pie chart for few categories
       const data = entries.map(([name, value]) => ({
-        name: formatDisplayValue(header, name) || '(empty)',
+        name: formatStatsValue(header, name),
         value
       }));
 
@@ -82,7 +82,7 @@ export function DynamicStatsPanel({ instances, selectedInstances, allHeaders }: 
         .sort((a, b) => b[1] - a[1])
         .slice(0, 15) // Top 15
         .map(([name, count]) => ({
-          name: formatDisplayValue(header, name).slice(0, 20) || '(empty)',
+          name: formatStatsValue(header, name).slice(0, 20),
           count
         }));
 
@@ -218,4 +218,13 @@ export function DynamicStatsPanel({ instances, selectedInstances, allHeaders }: 
       )}
     </div>
   );
+}
+
+function formatStatsValue(header: string, value: unknown): string {
+  if (value === undefined || value === null || value === '') {
+    return 'Unknown';
+  }
+
+  const formattedValue = formatDisplayValue(header, value);
+  return formattedValue === '-' ? 'Unknown' : formattedValue;
 }

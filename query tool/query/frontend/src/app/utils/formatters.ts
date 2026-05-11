@@ -12,7 +12,7 @@ export function formatDisplayValue(header: string, value: unknown): string {
     return '-';
   }
 
-  if (header === 'StudyDate') {
+  if (header === 'PatientBirthDate' || header === 'StudyDate') {
     return formatDicomDate(value);
   }
 
@@ -24,7 +24,11 @@ export function formatHeaderLabel(header: string): string {
     BodyPartExamined: 'Anatomical region',
     Images: 'Images',
     Modality: 'Modality',
+    PatientBirthDate: 'Age',
+    PatientID: 'Patient ID',
+    PatientSex: 'Sex',
     SeriesDescription: 'Series description',
+    StudyInstanceUID: 'Study ID',
     StudyDate: 'Study date',
     StudyDescription: 'Study description',
   };
