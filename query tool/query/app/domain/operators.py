@@ -69,6 +69,14 @@ HIDDEN_TAGS = {
     "ReferringPhysicianName",
 }
 
+ALLOWED_TAGS = [
+    "StudyInstanceUID",
+    "Modality",
+    "PatientSex",
+    "PatientBirthDate",
+    "BodyPartExamined"  # TODO: anotimical region, actual tag to be determined
+]
+
 
 def normalize_filter_specs(raw_filters: list[Any]) -> list[FilterSpec]:
     normalized: list[FilterSpec] = []

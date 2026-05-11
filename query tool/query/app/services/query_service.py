@@ -2,7 +2,7 @@ from collections import Counter
 from time import perf_counter
 from typing import Any
 
-from app.domain.operators import HIDDEN_TAGS, OPERATORS, FilterSpec, normalize_filter_specs
+from app.domain.operators import HIDDEN_TAGS, ALLOWED_TAGS, OPERATORS, FilterSpec, normalize_filter_specs
 from app.services.orthanc_client import OrthancClient
 from app.services.orthanc_tags import normalize_orthanc_dicom_tags, safe_get, safe_get_full
 
@@ -40,8 +40,8 @@ class QueryService:
 
     def query(self, filters: list[FilterSpec], stats_tags: list[str]) -> dict[str, Any]:
         total_instances = self._instance_count()
-        usable_filters = [spec for spec in filters if spec[0] not in HIDDEN_TAGS]
-        usable_stats_tags = [tag for tag in stats_tags if tag not in HIDDEN_TAGS]
+        usable_filters = [spec for spec in filters if spec[0] in stats_tags]
+        stats_tags = ALLOWED_TAGS
 
         query_body: dict[str, Any] = {}
         for tag_name, operator_name, expected in usable_filters:
@@ -50,7 +50,7 @@ class QueryService:
 
         # geef series ID's die bij metadata selectie passen
         series_ids = self.orthanc.find_series(query_body)
-        stats_counters: dict[str, Counter] = {tag: Counter() for tag in usable_stats_tags}
+        stats_counters: dict[str, Counter] = {tag: Counter() for tag in stats_tags}
         matched: list[dict[str, Any]] = []
 
         for series_id in series_ids:
@@ -61,12 +61,10 @@ class QueryService:
 
             matched.append({"id": series_id, "meta": meta})
 
-            for tag in usable_stats_tags:
+            for tag in stats_tags:
                 value = safe_get(meta, tag)
                 if value is not None:
                     stats_counters[tag][_stats_key(value)] += 1
-
-            self._collect_instance_stats(series_id, meta, usable_filters, usable_stats_tags, stats_counters)
 
         return {
             "ok": True,
@@ -124,43 +122,6 @@ class QueryService:
             if not OPERATORS[operator_name](actual, expected):
                 return False
         return True
-
-    def _collect_instance_stats(
-        self,
-        series_id: str,
-        series_meta: dict[str, Any],
-        filters: list[FilterSpec],
-        stats_tags: list[str],
-        stats_counters: dict[str, Counter],
-    ) -> None:
-        if not stats_tags:
-            return
-
-        try:
-            instances = self.orthanc.get_series_instances(series_id)
-        except Exception:
-            return
-
-        for instance in instances:
-            instance_id = instance.get("ID") if isinstance(instance, dict) else None
-            if not instance_id:
-                continue
-            try:
-                instance_tags = normalize_orthanc_dicom_tags(self.orthanc.get_instance_tags(instance_id))
-            except Exception:
-                continue
-
-            instance_meta = {
-                "MainDicomTags": series_meta.get("MainDicomTags", {}),
-                "DicomTags": instance_tags,
-            }
-            if not self._matches(instance_meta, filters):
-                continue
-
-            for tag in stats_tags:
-                value = safe_get_full(instance_meta, tag)
-                if value is not None:
-                    stats_counters[tag][_stats_key(value)] += 1
 
     def _series_summary(self, series_id: str, meta: dict[str, Any]) -> dict[str, Any]:
         tags = meta.get("MainDicomTags", {})
