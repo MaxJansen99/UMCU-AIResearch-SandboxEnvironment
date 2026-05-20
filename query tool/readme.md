@@ -8,6 +8,16 @@ De PoC laat zien hoe een onderzoeker DICOM metadata kan doorzoeken, series/scans
 
 Het project gebruikt lokale/public testdata en draait volledig via Docker Compose.
 
+## Sprint 5 AI Test-Agent
+
+Voor de Sprint 5 opdracht is een AI test-agent toegevoegd in:
+
+```text
+query tool/test-agent
+```
+
+Deze agent ondersteunt de test/review/verify stap van het scrumbord. De map bevat een vaste prompt, werkwijze, beslisregels en voorbeelden voor code, documenten en diagrammen.
+
 ## Huidige Functionaliteit
 
 ### Researcher
