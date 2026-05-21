@@ -6,12 +6,11 @@ readonly DEFAULT_MODE="install"
 usage() {
   cat <<'EOF'
 Usage:
-  ./gitlab.sh [install|kube-config|help]
+  ./gitlab.sh [install|help]
 
 Commands:
-  install      Install Docker, GitLab CE, GitLab Runner and prepare registry exchange.
-  kube-config  Add a kubeconfig for gitlab-runner and mount it in runner config.
-  help         Show this help text.
+  install  Install Docker, GitLab CE, GitLab Runner, registry exchange, and runner kubeconfig.
+  help     Show this help text.
 EOF
 }
 
@@ -121,6 +120,7 @@ install_all() {
   install_gitlab_runner
   register_docker_runner
   show_registry_exchange
+  configure_runner_kubeconfig
 }
 
 configure_runner_kubeconfig() {
@@ -142,10 +142,6 @@ main() {
     install)
       require_root
       install_all
-      ;;
-    kube-config)
-      require_root
-      configure_runner_kubeconfig
       ;;
     help|-h|--help)
       usage

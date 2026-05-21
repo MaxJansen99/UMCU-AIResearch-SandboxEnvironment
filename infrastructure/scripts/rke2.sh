@@ -8,12 +8,11 @@ readonly LINUX_MAJOR="10"
 usage() {
   cat <<'EOF'
 Usage:
-  ./rke2.sh [install|kube-config|help]
+  ./rke2.sh [install|help]
 
 Commands:
-  install      Install and configure single-node RKE2, then prepare registry exchange.
-  kube-config  Print kubeconfig content for use in GitLab Runner.
-  help         Show this help text.
+  install  Install and configure single-node RKE2, then print kubeconfig for GitLab Runner.
+  help     Show this help text.
 EOF
 }
 
@@ -139,17 +138,22 @@ install_all() {
   configure_rke2_repository
   install_rke2_server
   configure_registry_access
+  print_kubeconfig
 }
 
 print_kubeconfig() {
   echo "Exchange 2: RKE2 -> GitLab: Kube Config"
-  read -rp "RKE2_DOMAIN_NAME=" RKE2_DOMAIN_NAME
+
+  if [[ -z "${RKE2_DOMAIN_NAME:-}" ]]; then
+    read -rp "RKE2_DOMAIN_NAME=" RKE2_DOMAIN_NAME
+  fi
 
   # Utilities such as kubectl, crictl and ctr are available in /var/lib/rancher/rke2/bin.
   mkdir -p ~/.kube/
   cp /etc/rancher/rke2/rke2.yaml ~/.kube/config
+  sed -i -E "s#server: https://(127\\.0\\.0\\.1|localhost):6443#server: https://${RKE2_DOMAIN_NAME}:6443#" ~/.kube/config
 
-  echo "Copy contents of .kube/config and change address to ${RKE2_DOMAIN_NAME}"
+  echo "Copy contents of .kube/config to the GitLab install flow:"
   cat ~/.kube/config
   pause
 }
@@ -161,10 +165,6 @@ main() {
     install)
       require_root
       install_all
-      ;;
-    kube-config)
-      require_root
-      print_kubeconfig
       ;;
     help|-h|--help)
       usage

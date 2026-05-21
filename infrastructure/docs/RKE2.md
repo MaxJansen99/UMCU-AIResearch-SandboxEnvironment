@@ -4,7 +4,7 @@ This document explains how `infrastructure/scripts/rke2.sh` works.
 
 ## Purpose
 
-The script installs and configures a single-node RKE2 server on a RHEL-compatible host. It also configures RKE2/containerd to pull images from the GitLab container registry and can print kubeconfig content for use by GitLab Runner.
+The script installs and configures a single-node RKE2 server on a RHEL-compatible host. It also configures RKE2/containerd to pull images from the GitLab container registry and prints kubeconfig content for use by GitLab Runner during the main install flow.
 
 The script must be run as root for package installation, firewall changes, system configuration, and service management.
 
@@ -12,7 +12,6 @@ The script must be run as root for package installation, firewall changes, syste
 
 ```bash
 sudo ./infrastructure/scripts/rke2.sh install
-sudo ./infrastructure/scripts/rke2.sh kube-config
 ./infrastructure/scripts/rke2.sh help
 ```
 
@@ -59,27 +58,15 @@ The `install` command runs the full RKE2 setup flow.
    - Writes `/etc/rancher/rke2/registries.yaml`.
    - Restarts `rke2-server.service`.
 
-## `kube-config`
-
-The `kube-config` command prints kubeconfig content for the GitLab host.
-
-It does the following:
-
-1. Prompts for `RKE2_DOMAIN_NAME`.
-2. Creates `~/.kube`.
-3. Copies `/etc/rancher/rke2/rke2.yaml` to `~/.kube/config`.
-4. Prints the kubeconfig.
-5. Reminds you to change the kubeconfig server address to the RKE2 domain name.
-
-After this, paste the kubeconfig into the GitLab host with:
-
-```bash
-sudo ./infrastructure/scripts/gitlab.sh kube-config
-```
+8. `print_kubeconfig`
+   - Creates `~/.kube`.
+   - Copies `/etc/rancher/rke2/rke2.yaml` to `~/.kube/config`.
+   - Updates the kubeconfig server address to the RKE2 domain name.
+   - Prints the kubeconfig for the GitLab install flow.
 
 ## Manual Exchange With GitLab
 
-The RKE2 and GitLab scripts are meant to be run in two exchange steps.
+The RKE2 and GitLab scripts are meant to be run as one guided install flow with two manual copy/paste exchanges.
 
 ### Exchange 1: GitLab registry to RKE2
 
@@ -103,23 +90,7 @@ sudo ./infrastructure/scripts/rke2.sh install
 
 Paste the certificate and deploy token values when prompted.
 
-### Exchange 2: RKE2 kubeconfig to GitLab
-
-On the RKE2 host:
-
-```bash
-sudo ./infrastructure/scripts/rke2.sh kube-config
-```
-
-Copy the printed kubeconfig.
-
-On the GitLab host:
-
-```bash
-sudo ./infrastructure/scripts/gitlab.sh kube-config
-```
-
-Paste the kubeconfig content and press `Ctrl-D` to finish input.
+The RKE2 install flow then prints the kubeconfig. Copy that output back into the waiting GitLab install flow and press `Ctrl-D` to finish input.
 
 ## Notes
 

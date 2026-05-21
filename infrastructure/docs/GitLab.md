@@ -4,7 +4,7 @@ This document explains how `infrastructure/scripts/gitlab.sh` works.
 
 ## Purpose
 
-The script installs and configures GitLab CE, Docker, and GitLab Runner on a RHEL-compatible host. It also prints the information that must be copied to the RKE2 host so RKE2 can trust and use the GitLab container registry.
+The script installs and configures GitLab CE, Docker, and GitLab Runner on a RHEL-compatible host. It also prints the information that must be copied to the RKE2 host so RKE2 can trust and use the GitLab container registry, then prompts for the RKE2 kubeconfig during the main install flow.
 
 The script must be run as root for the commands that install packages, change firewall rules, write system configuration, and restart services.
 
@@ -12,7 +12,6 @@ The script must be run as root for the commands that install packages, change fi
 
 ```bash
 sudo ./infrastructure/scripts/gitlab.sh install
-sudo ./infrastructure/scripts/gitlab.sh kube-config
 ./infrastructure/scripts/gitlab.sh help
 ```
 
@@ -59,27 +58,16 @@ The `install` command runs the full GitLab setup flow.
    - Pauses so you can copy the certificate to the RKE2 install flow.
    - Reminds you to create and copy a GitLab deploy token.
 
-## `kube-config`
-
-The `kube-config` command configures GitLab Runner so CI jobs can access the RKE2 cluster.
-
-It does the following:
-
-1. Creates `/home/gitlab-runner/.kube`.
-2. Prompts you to paste kubeconfig content from the RKE2 host.
-3. Writes that content to `/home/gitlab-runner/.kube/config` as the `gitlab-runner` user.
-4. Updates `/etc/gitlab-runner/config.toml` so Docker jobs mount the kubeconfig read-only at `/root/.kube`.
-5. Restarts GitLab Runner.
-
-Run this after the RKE2 host has produced its kubeconfig with:
-
-```bash
-sudo ./infrastructure/scripts/rke2.sh kube-config
-```
+8. `configure_runner_kubeconfig`
+   - Creates `/home/gitlab-runner/.kube`.
+   - Prompts you to paste kubeconfig content from the RKE2 host.
+   - Writes that content to `/home/gitlab-runner/.kube/config` as the `gitlab-runner` user.
+   - Updates `/etc/gitlab-runner/config.toml` so Docker jobs mount the kubeconfig read-only at `/root/.kube`.
+   - Restarts GitLab Runner.
 
 ## Manual Exchange With RKE2
 
-The GitLab and RKE2 scripts are meant to be run in two exchange steps.
+The GitLab and RKE2 scripts are meant to be run as one guided install flow with two manual copy/paste exchanges.
 
 ### Exchange 1: GitLab registry to RKE2
 
@@ -97,23 +85,7 @@ Copy these values when the script asks:
 
 Paste those values into the RKE2 install flow.
 
-### Exchange 2: RKE2 kubeconfig to GitLab
-
-On the RKE2 host:
-
-```bash
-sudo ./infrastructure/scripts/rke2.sh kube-config
-```
-
-Copy the kubeconfig output and update the server address to the RKE2 domain name when needed.
-
-On the GitLab host:
-
-```bash
-sudo ./infrastructure/scripts/gitlab.sh kube-config
-```
-
-Paste the kubeconfig content and press `Ctrl-D` to finish input.
+The GitLab install flow then waits for kubeconfig content. Run the RKE2 install flow on the RKE2 host, copy the kubeconfig it prints at the end, paste it into the waiting GitLab install flow, and press `Ctrl-D` to finish input.
 
 ## Notes
 
