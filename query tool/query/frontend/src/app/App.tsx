@@ -155,10 +155,15 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
       const { header, value } = filter;
       
       // Determine filter type
-      if (header === 'PatientBirthDate' && Array.isArray(value)) {
+      if (
+        header === 'PatientBirthDate' &&
+        typeof value === 'object' &&
+        (value.min !== undefined || value.max !== undefined)
+      ) {
         filters[header] = {
-          type: 'ageGroup',
-          value
+          type: 'ageRange',
+          min: value.min,
+          max: value.max
         };
       } else if (Array.isArray(value)) {
         filters[header] = {

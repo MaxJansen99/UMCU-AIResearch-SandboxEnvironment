@@ -130,7 +130,7 @@ export function getAvailableHeaders(stats: DicomStats): string[] {
 // Filter instances based on dynamic criteria
 export interface DynamicFilters {
   [headerName: string]: {
-    type: 'categorical' | 'numeric' | 'text' | 'ageGroup';
+    type: 'categorical' | 'numeric' | 'text' | 'ageRange';
     value?: string | string[];
     min?: number | string;
     max?: number | string;

@@ -5,6 +5,7 @@ export const CORE_METADATA_TAGS = [
   'PatientBirthDate',
   'BodyPartExamined',
   'PatientSex',
+  'StudyDate',
 ] as const;
 
 type QueryResponse = {
@@ -65,8 +66,12 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
   const backendFilters: Array<[string, string, unknown]> = [];
 
   for (const [header, config] of Object.entries(filters)) {
-    if (config.type === 'ageGroup' && Array.isArray(config.value) && config.value.length > 0) {
-      backendFilters.push([header, 'date in ranges', ageGroupsToBirthDateRanges(config.value)]);
+    if (config.type === 'ageRange') {
+      const birthDateRange = ageRangeToBirthDateRange(config.min, config.max);
+      if (birthDateRange) {
+        backendFilters.push([header, 'date in ranges', [birthDateRange]]);
+      }
+      continue;
     } else if (Array.isArray(config.value) && config.value.length > 0) {
       backendFilters.push([header, 'in', config.value]);
     } else if (config.value !== undefined && config.value !== '') {
@@ -88,27 +93,37 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
   return backendFilters;
 }
 
-function ageGroupsToBirthDateRanges(ageGroups: string[]): Array<{ min?: string; max?: string }> {
-  return ageGroups.map(ageGroupToBirthDateRange).filter(Boolean) as Array<{ min?: string; max?: string }>;
+function ageRangeToBirthDateRange(
+  minAge: number | string | undefined,
+  maxAge: number | string | undefined
+): { min?: string; max?: string } | undefined {
+  const today = new Date();
+  const parsedMinAge = parseAge(minAge);
+  const parsedMaxAge = parseAge(maxAge);
+  const range: { min?: string; max?: string } = {};
+
+  if (parsedMaxAge !== undefined) {
+    range.min = toDicomDate(addYears(today, -parsedMaxAge));
+  }
+
+  if (parsedMinAge !== undefined) {
+    range.max = toDicomDate(addYears(today, -parsedMinAge));
+  }
+
+  if (range.min === undefined && range.max === undefined) {
+    return undefined;
+  }
+
+  return range;
 }
 
-function ageGroupToBirthDateRange(ageGroup: string): { min?: string; max?: string } | undefined {
-  const today = new Date();
-
-  if (ageGroup === '0-18') {
-    return { min: toDicomDate(addYears(today, -18)) };
-  }
-  if (ageGroup === '18-40') {
-    return { min: toDicomDate(addYears(today, -40)), max: toDicomDate(addYears(today, -18)) };
-  }
-  if (ageGroup === '40-65') {
-    return { min: toDicomDate(addYears(today, -65)), max: toDicomDate(addYears(today, -40)) };
-  }
-  if (ageGroup === '65+') {
-    return { max: toDicomDate(addYears(today, -65)) };
+function parseAge(value: number | string | undefined): number | undefined {
+  if (value === undefined || value === '') {
+    return undefined;
   }
 
-  return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function addYears(date: Date, years: number): Date {
