@@ -66,6 +66,20 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
   const backendFilters: Array<[string, string, unknown]> = [];
 
   for (const [header, config] of Object.entries(filters)) {
+    if (config.type === 'ageRanges' && Array.isArray(config.value) && config.value.length > 0) {
+      backendFilters.push([
+        header,
+        'date in ranges',
+        ageRangesToBirthDateRanges(config.value as Array<{ min: number; max: number }>)
+      ]);
+      continue;
+    }
+
+    if (config.type === 'ageGroup' && Array.isArray(config.value) && config.value.length > 0) {
+      backendFilters.push([header, 'date in ranges', ageGroupsToBirthDateRanges(config.value as string[])]);
+      continue;
+    }
+
     if (config.type === 'ageRange') {
       const birthDateRange = ageRangeToBirthDateRange(config.min, config.max);
       if (birthDateRange) {
@@ -91,6 +105,35 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
   }
 
   return backendFilters;
+}
+
+function ageRangesToBirthDateRanges(ageRanges: Array<{ min: number; max: number }>): Array<{ min?: string; max?: string }> {
+  return ageRanges
+    .map(range => ageRangeToBirthDateRange(range.min, range.max))
+    .filter(Boolean) as Array<{ min?: string; max?: string }>;
+}
+
+function ageGroupsToBirthDateRanges(ageGroups: string[]): Array<{ min?: string; max?: string }> {
+  return ageGroups.map(ageGroupToBirthDateRange).filter(Boolean) as Array<{ min?: string; max?: string }>;
+}
+
+function ageGroupToBirthDateRange(ageGroup: string): { min?: string; max?: string } | undefined {
+  const today = new Date();
+
+  if (ageGroup === '0-18') {
+    return { min: toDicomDate(addYears(today, -18)) };
+  }
+  if (ageGroup === '18-40') {
+    return { min: toDicomDate(addYears(today, -40)), max: toDicomDate(addYears(today, -18)) };
+  }
+  if (ageGroup === '40-65') {
+    return { min: toDicomDate(addYears(today, -65)), max: toDicomDate(addYears(today, -40)) };
+  }
+  if (ageGroup === '65+') {
+    return { max: toDicomDate(addYears(today, -65)) };
+  }
+
+  return undefined;
 }
 
 function ageRangeToBirthDateRange(

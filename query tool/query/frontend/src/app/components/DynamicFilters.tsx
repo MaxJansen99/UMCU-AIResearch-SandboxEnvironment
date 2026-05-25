@@ -18,6 +18,11 @@ type FilterOption = {
   disabled?: boolean;
 };
 
+type AgeRange = {
+  min: number;
+  max: number;
+};
+
 const PRESET_FILTER_OPTIONS: Record<string, FilterOption[]> = {
   Modality: [
     { value: 'MR', label: 'MRI' },
@@ -85,6 +90,7 @@ export function DynamicFilters({
     Object.fromEntries(FILTER_SECTIONS.map(section => [section.id, section.defaultOpen]))
   );
   const [bodyPartSearch, setBodyPartSearch] = useState('');
+  const [ageRangeDraft, setAgeRangeDraft] = useState({ min: '', max: '' });
 
   const filterConfigs = useMemo(() => {
     if (!stats) return new Map<string, FilterConfig>();
@@ -142,6 +148,31 @@ export function DynamicFilters({
       ...current,
       [sectionId]: !current[sectionId],
     }));
+  };
+
+  const addAgeRange = () => {
+    const min = Number(ageRangeDraft.min);
+    const max = Number(ageRangeDraft.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0 || min > max) {
+      return;
+    }
+
+    const currentValue = getFilterValue('PatientBirthDate');
+    const currentRanges: AgeRange[] = Array.isArray(currentValue) ? currentValue : [];
+    const alreadyExists = currentRanges.some(range => range.min === min && range.max === max);
+    if (!alreadyExists) {
+      updateFilter('PatientBirthDate', [...currentRanges, { min, max }]);
+    }
+    setAgeRangeDraft({ min: '', max: '' });
+  };
+
+  const removeAgeRange = (indexToRemove: number) => {
+    const currentValue = getFilterValue('PatientBirthDate');
+    const currentRanges: AgeRange[] = Array.isArray(currentValue) ? currentValue : [];
+    updateFilter(
+      'PatientBirthDate',
+      currentRanges.filter((_, index) => index !== indexToRemove)
+    );
   };
 
   if (!stats) {
@@ -210,7 +241,9 @@ export function DynamicFilters({
                   />
                   <span className="truncate">{option.label}</span>
                 </span>
-                <span className="shrink-0 text-xs text-gray-500">{option.count ?? 0}</span>
+                {option.count !== undefined && (
+                  <span className="shrink-0 text-xs text-gray-500">{option.count}</span>
+                )}
               </label>
             ))
           ) : (
@@ -264,36 +297,72 @@ export function DynamicFilters({
     }
 
     if (header === 'PatientBirthDate') {
+      const currentValue = getFilterValue(header);
+      const selectedRanges: AgeRange[] = Array.isArray(currentValue) ? currentValue : [];
+      const min = Number(ageRangeDraft.min);
+      const max = Number(ageRangeDraft.max);
+      const canAddAgeRange =
+        Number.isFinite(min) &&
+        Number.isFinite(max) &&
+        min >= 0 &&
+        max >= 0 &&
+        min <= max;
+
       return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">Min age</span>
-            <input
-              type="number"
-              min="0"
-              aria-label="Minimum age"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              value={currentValue?.min ?? ''}
-              onChange={(event) => {
-                const val = event.target.value ? parseInt(event.target.value, 10) : undefined;
-                updateFilter(header, { ...currentValue, min: val });
-              }}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">Max age</span>
-            <input
-              type="number"
-              min="0"
-              aria-label="Maximum age"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              value={currentValue?.max ?? ''}
-              onChange={(event) => {
-                const val = event.target.value ? parseInt(event.target.value, 10) : undefined;
-                updateFilter(header, { ...currentValue, max: val });
-              }}
-            />
-          </label>
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-600">From age</span>
+              <input
+                type="number"
+                min="0"
+                aria-label="From age"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                value={ageRangeDraft.min}
+                onChange={(event) => setAgeRangeDraft(current => ({ ...current, min: event.target.value }))}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-600">To age</span>
+              <input
+                type="number"
+                min="0"
+                aria-label="To age"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                value={ageRangeDraft.max}
+                onChange={(event) => setAgeRangeDraft(current => ({ ...current, max: event.target.value }))}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={addAgeRange}
+              disabled={!canAddAgeRange}
+              className="self-end rounded-md bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+            >
+              Add range
+            </button>
+          </div>
+
+          {selectedRanges.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedRanges.map((range, index) => (
+                <span
+                  key={`${range.min}-${range.max}-${index}`}
+                  className="inline-flex items-center gap-2 rounded bg-blue-50 px-2 py-1 text-xs text-blue-700"
+                >
+                  {range.min}-{range.max}
+                  <button
+                    type="button"
+                    onClick={() => removeAgeRange(index)}
+                    className="text-blue-500 hover:text-blue-800"
+                    aria-label={`Remove age range ${range.min}-${range.max}`}
+                  >
+                    x
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -448,7 +517,14 @@ function toDateInputValue(value: unknown): string {
 
 function formatActiveFilterValue(value: any): string {
   if (Array.isArray(value)) {
-    return value.join(', ');
+    return value
+      .map(item => {
+        if (typeof item === 'object' && item !== null && item.min !== undefined && item.max !== undefined) {
+          return `${item.min}-${item.max}`;
+        }
+        return String(item);
+      })
+      .join(', ');
   }
   if (typeof value === 'object' && value !== null) {
     return `${value.min || 'any'} - ${value.max || 'any'}`;

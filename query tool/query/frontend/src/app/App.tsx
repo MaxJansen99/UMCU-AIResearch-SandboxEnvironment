@@ -99,6 +99,7 @@ type ResearcherDashboardProps = {
 
 function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
   const [stats, setStats] = useState<DicomStats | null>(null);
+  const [filterStats, setFilterStats] = useState<DicomStats | null>(null);
   const [allInstances, setAllInstances] = useState<DicomInstance[]>([]);
   const [filteredInstances, setFilteredInstances] = useState<DicomInstance[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -128,6 +129,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
     try {
       const loadedStats = await loadDicomStats();
       setStats(loadedStats);
+      setFilterStats(loadedStats);
       
       // Generate instances from the stats
       const instances = generateInstancesFromStats(loadedStats);
@@ -156,6 +158,23 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
       
       // Determine filter type
       if (
+        header === 'PatientBirthDate' &&
+        Array.isArray(value) &&
+        value.every(item => typeof item === 'object' && item !== null)
+      ) {
+        filters[header] = {
+          type: 'ageRanges',
+          value
+        };
+      } else if (
+        header === 'PatientBirthDate' &&
+        Array.isArray(value)
+      ) {
+        filters[header] = {
+          type: 'ageGroup',
+          value
+        };
+      } else if (
         header === 'PatientBirthDate' &&
         typeof value === 'object' &&
         (value.min !== undefined || value.max !== undefined)
@@ -355,7 +374,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
           <>
             {/* Filter Controls */}
             <DynamicFilters
-              stats={stats}
+              stats={filterStats || stats}
               activeFilters={activeFilters}
               onFiltersChange={setActiveFilters}
               onSearch={handleSearch}
