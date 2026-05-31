@@ -32,10 +32,14 @@ if [ -n "${QUERY_TLS_CA}" ]; then
   args="$args --tls-ca ${QUERY_TLS_CA}"
 fi
 
+data_source="$(echo "${QUERY_DATA_SOURCE:-orthanc}" | tr '[:upper:]' '[:lower:]')"
+
 if [ -n "${QUERY_PACS_URL}" ]; then
   set -- "${QUERY_PACS_URL}" $args
+elif [ "$data_source" = "csv" ] || [ "$data_source" = "auto" ]; then
+  set -- $args
 else
-  echo "QUERY_PACS_URL is required"
+  echo "QUERY_PACS_URL is required when QUERY_DATA_SOURCE=orthanc"
   exit 1
 fi
 

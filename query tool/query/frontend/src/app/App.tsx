@@ -167,6 +167,15 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
           value
         };
       } else if (
+        header === 'StudyDate' &&
+        Array.isArray(value) &&
+        value.every(item => typeof item === 'object' && item !== null)
+      ) {
+        filters[header] = {
+          type: 'dateRanges',
+          value
+        };
+      } else if (
         header === 'PatientBirthDate' &&
         Array.isArray(value)
       ) {

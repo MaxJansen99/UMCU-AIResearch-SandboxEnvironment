@@ -8,8 +8,10 @@ from app.repositories.exports_repository import ExportsRepository
 from app.repositories.requests_repository import RequestsRepository
 from app.repositories.users_repository import UsersRepository
 from app.services.auth import AuthService
+from app.services.csv_data_source import CsvDataSource
 from app.services.database import Database
 from app.services.export_service import ExportService
+from app.services.fallback_data_source import FallbackDataSource
 from app.services.orthanc_client import OrthancClient
 from app.services.query_service import QueryService
 from app.services.request_workflow import RequestWorkflowService
@@ -30,8 +32,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    orthanc = OrthancClient(args.pacs_url, auth=settings.auth)
-    query_service = QueryService(orthanc)
+    orthanc = OrthancClient(args.pacs_url, auth=settings.auth) if args.pacs_url else None
+    query_data_source = build_query_data_source(orthanc)
+    query_service = QueryService(query_data_source)
     database = Database(settings.db_connection_info)
     database.initialize()
     users_repository = UsersRepository()
@@ -62,8 +65,28 @@ def main() -> None:
         protocol = "https"
 
     print(f"DICOM query service listening on {protocol}://{args.host}:{args.port}")
-    print(f"PACS URL: {args.pacs_url}")
+    print(f"Query data source: {settings.data_source}")
+    print(f"PACS URL: {args.pacs_url or '<not configured>'}")
+    if settings.csv_file:
+        print(f"CSV fallback file: {settings.csv_file}")
     server.serve_forever()
+
+
+def build_query_data_source(orthanc: OrthancClient | None):
+    if settings.data_source == "csv":
+        return CsvDataSource(settings.csv_file)
+
+    if settings.data_source == "auto":
+        if orthanc is None:
+            return CsvDataSource(settings.csv_file)
+        return FallbackDataSource(orthanc, CsvDataSource(settings.csv_file))
+
+    if settings.data_source != "orthanc":
+        raise ValueError("QUERY_DATA_SOURCE must be one of: orthanc, csv, auto.")
+
+    if orthanc is None:
+        raise ValueError("QUERY_PACS_URL is required when QUERY_DATA_SOURCE=orthanc.")
+    return orthanc
 
 
 if __name__ == "__main__":

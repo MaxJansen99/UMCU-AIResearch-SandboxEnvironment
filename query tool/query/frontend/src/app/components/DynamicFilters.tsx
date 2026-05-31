@@ -1,4 +1,4 @@
-import { ChevronDown, Filter } from 'lucide-react';
+import { ChevronDown, Filter, X } from 'lucide-react';
 import { DicomStats, FilterConfig, analyzeHeader } from '../utils/dicomLoader';
 import { formatHeaderLabel } from '../utils/formatters';
 import { useMemo, useState } from 'react';
@@ -23,6 +23,11 @@ type AgeRange = {
   max: number;
 };
 
+type DateRange = {
+  min: string;
+  max: string;
+};
+
 const PRESET_FILTER_OPTIONS: Record<string, FilterOption[]> = {
   Modality: [
     { value: 'MR', label: 'MRI' },
@@ -36,18 +41,6 @@ const PRESET_FILTER_OPTIONS: Record<string, FilterOption[]> = {
     { value: 'M', label: 'Male' },
     { value: 'F', label: 'Female' },
     { value: 'O', label: 'Other' },
-    { value: '', label: 'Unknown' },
-  ],
-  BodyPartExamined: [
-    { value: 'BRAIN', label: 'Brain' },
-    { value: 'CHEST', label: 'Chest' },
-    { value: 'ABDOMEN', label: 'Abdomen' },
-    { value: 'PELVIS', label: 'Pelvis' },
-    { value: 'SPINE', label: 'Spine' },
-    { value: 'HEART', label: 'Cardiac' },
-    { value: 'BREAST', label: 'Breast' },
-    { value: 'EXTREMITY', label: 'Extremity' },
-    { value: 'VASCULAR', label: 'Vascular' },
     { value: '', label: 'Unknown' },
   ],
 };
@@ -91,6 +84,7 @@ export function DynamicFilters({
   );
   const [bodyPartSearch, setBodyPartSearch] = useState('');
   const [ageRangeDraft, setAgeRangeDraft] = useState({ min: '', max: '' });
+  const [studyDateRangeDraft, setStudyDateRangeDraft] = useState({ min: '', max: '' });
 
   const filterConfigs = useMemo(() => {
     if (!stats) return new Map<string, FilterConfig>();
@@ -173,6 +167,43 @@ export function DynamicFilters({
       'PatientBirthDate',
       currentRanges.filter((_, index) => index !== indexToRemove)
     );
+  };
+
+  const addStudyDateRange = () => {
+    const min = toDicomDate(studyDateRangeDraft.min);
+    const max = toDicomDate(studyDateRangeDraft.max);
+    if (!min || !max || min > max) {
+      return;
+    }
+
+    const currentValue = getFilterValue('StudyDate');
+    const currentRanges: DateRange[] = Array.isArray(currentValue) ? currentValue : [];
+    const alreadyExists = currentRanges.some(range => range.min === min && range.max === max);
+    if (!alreadyExists) {
+      updateFilter('StudyDate', [...currentRanges, { min, max }]);
+    }
+    setStudyDateRangeDraft({ min: '', max: '' });
+  };
+
+  const removeStudyDateRange = (indexToRemove: number) => {
+    const currentValue = getFilterValue('StudyDate');
+    const currentRanges: DateRange[] = Array.isArray(currentValue) ? currentValue : [];
+    updateFilter(
+      'StudyDate',
+      currentRanges.filter((_, index) => index !== indexToRemove)
+    );
+  };
+
+  const removeFilter = (header: string) => {
+    onFiltersChange(activeFilters.filter(filter => filter.header !== header));
+  };
+
+  const resetSection = (headers: readonly string[]) => {
+    onFiltersChange(activeFilters.filter(filter => !headers.includes(filter.header)));
+  };
+
+  const sectionActiveCount = (headers: readonly string[]) => {
+    return activeFilters.filter(filter => headers.includes(filter.header)).length;
   };
 
   if (!stats) {
@@ -261,37 +292,75 @@ export function DynamicFilters({
 
     const currentValue = getFilterValue(header);
 
+    if (header === 'BodyPartExamined') {
+      return renderCategoricalFilter(
+        header,
+        getCategoricalOptions(header, { ...config, type: 'categorical' }, stats.stats[header] || {})
+      );
+    }
+
     if (header === 'StudyDate') {
+      const currentValue = getFilterValue(header);
+      const selectedRanges: DateRange[] = Array.isArray(currentValue) ? currentValue : [];
+      const min = toDicomDate(studyDateRangeDraft.min);
+      const max = toDicomDate(studyDateRangeDraft.max);
+      const canAddStudyDateRange = Boolean(min && max && min <= max);
+
       return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">From date</span>
-            <input
-              type="date"
-              min="1900-01-01"
-              aria-label="Study date from"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              value={toDateInputValue(currentValue?.min)}
-              onChange={(event) => {
-                const min = toDicomDate(event.target.value);
-                updateFilter(header, { ...currentValue, min });
-              }}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">To date</span>
-            <input
-              type="date"
-              min="1900-01-01"
-              aria-label="Study date to"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              value={toDateInputValue(currentValue?.max)}
-              onChange={(event) => {
-                const max = toDicomDate(event.target.value);
-                updateFilter(header, { ...currentValue, max });
-              }}
-            />
-          </label>
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-600">From date</span>
+              <input
+                type="date"
+                min="1900-01-01"
+                aria-label="Study date from"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                value={studyDateRangeDraft.min}
+                onChange={(event) => setStudyDateRangeDraft(current => ({ ...current, min: event.target.value }))}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-600">To date</span>
+              <input
+                type="date"
+                min="1900-01-01"
+                aria-label="Study date to"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                value={studyDateRangeDraft.max}
+                onChange={(event) => setStudyDateRangeDraft(current => ({ ...current, max: event.target.value }))}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={addStudyDateRange}
+              disabled={!canAddStudyDateRange}
+              className="self-end rounded-md bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+            >
+              Add range
+            </button>
+          </div>
+
+          {selectedRanges.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedRanges.map((range, index) => (
+                <span
+                  key={`${range.min}-${range.max}-${index}`}
+                  className="inline-flex items-center gap-2 rounded bg-blue-50 px-2 py-1 text-xs text-blue-700"
+                >
+                  {formatDateRange(range)}
+                  <button
+                    type="button"
+                    onClick={() => removeStudyDateRange(index)}
+                    className="text-blue-500 hover:text-blue-800"
+                    aria-label={`Remove study date range ${formatDateRange(range)}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -357,7 +426,7 @@ export function DynamicFilters({
                     className="text-blue-500 hover:text-blue-800"
                     aria-label={`Remove age range ${range.min}-${range.max}`}
                   >
-                    x
+                    <X className="h-3 w-3" />
                   </button>
                 </span>
               ))}
@@ -425,23 +494,46 @@ export function DynamicFilters({
           const sectionHeaders = section.headers.filter(header => availableHeaders.has(header));
           if (sectionHeaders.length === 0) return null;
           const isOpen = openSections[section.id];
+          const activeCount = sectionActiveCount(section.headers);
 
           return (
             <section key={section.id}>
-              <button
-                type="button"
-                onClick={() => toggleSection(section.id)}
+              <div
                 className={`flex w-full items-center justify-between border-b border-gray-200 px-4 py-3 text-left transition-colors ${
                   isOpen ? 'bg-gray-100' : 'bg-gray-50 hover:bg-gray-100'
                 }`}
               >
-                <span className="font-medium text-gray-900">{section.title}</span>
-                <ChevronDown
-                  className={`h-4 w-4 text-gray-500 transition-transform ${
-                    isOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.id)}
+                  className="flex flex-1 items-center justify-between text-left"
+                >
+                  <span className="font-medium text-gray-900">
+                    {section.title}
+                    {activeCount > 0 && (
+                      <span className="ml-2 rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                        {activeCount}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 text-gray-500 transition-transform ${
+                      isOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {activeCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => resetSection(section.headers)}
+                    className="ml-3 inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+                    aria-label={`Reset ${section.title} filters`}
+                  >
+                    <X className="h-3 w-3" />
+                    Reset
+                  </button>
+                )}
+              </div>
 
               {isOpen && (
                 <div className="space-y-4 bg-white px-4 py-4">
@@ -494,6 +586,14 @@ export function DynamicFilters({
                 className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded"
               >
                 {formatHeaderLabel(filter.header)}: {formatActiveFilterValue(filter.value)}
+                <button
+                  type="button"
+                  onClick={() => removeFilter(filter.header)}
+                  className="ml-1 rounded text-blue-500 hover:text-blue-900"
+                  aria-label={`Remove ${formatHeaderLabel(filter.header)} filter`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </span>
             ))}
           </div>
@@ -507,10 +607,14 @@ function toDicomDate(value: string): string | undefined {
   return value ? value.replace(/-/g, '') : undefined;
 }
 
-function toDateInputValue(value: unknown): string {
+function formatDateRange(range: DateRange): string {
+  return `${formatDicomDate(range.min)} - ${formatDicomDate(range.max)}`;
+}
+
+function formatDicomDate(value: unknown): string {
   const rawValue = String(value || '');
   if (!/^\d{8}$/.test(rawValue)) {
-    return '';
+    return rawValue;
   }
   return `${rawValue.slice(0, 4)}-${rawValue.slice(4, 6)}-${rawValue.slice(6, 8)}`;
 }
@@ -520,7 +624,10 @@ function formatActiveFilterValue(value: any): string {
     return value
       .map(item => {
         if (typeof item === 'object' && item !== null && item.min !== undefined && item.max !== undefined) {
-          return `${item.min}-${item.max}`;
+          const min = String(item.min);
+          const max = String(item.max);
+          const isDateRange = /^\d{8}$/.test(min) && /^\d{8}$/.test(max);
+          return isDateRange ? `${formatDicomDate(min)} - ${formatDicomDate(max)}` : `${item.min}-${item.max}`;
         }
         return String(item);
       })
@@ -564,11 +671,13 @@ function getCategoricalOptions(
     return options;
   }
 
-  return config.values.map(value => ({
-    value,
-    label: value || 'Unknown',
-    count: counts[value] || 0,
-  }));
+  return config.values
+    .map(value => ({
+      value,
+      label: value || 'Unknown',
+      count: counts[value] || 0,
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function getPresetFilterConfig(header: string, statsConfig?: FilterConfig): FilterConfig | undefined {

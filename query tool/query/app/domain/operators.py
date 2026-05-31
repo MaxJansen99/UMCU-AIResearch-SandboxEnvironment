@@ -95,6 +95,7 @@ ALLOWED_TAGS = [
     "PatientBirthDate",
     "BodyPartExamined",
     "PatientSex",
+    "StudyDate",
 ]
 
 

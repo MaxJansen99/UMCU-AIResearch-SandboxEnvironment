@@ -46,7 +46,13 @@ class QueryServer:
 
                 # GET / and /health: backend health check.
                 if path in {"/", "/health"}:
-                    self._send_json({"ok": True, "service": "dicom-query", "pacs_url": query_service.orthanc.base_url})
+                    self._send_json({
+                        "ok": True,
+                        "service": "dicom-query",
+                        "pacs_url": query_service.orthanc.base_url,
+                        "source": getattr(query_service.orthanc, "source_name", "orthanc"),
+                        "source_info": query_service.source_info(),
+                    })
                     return
 
                 # GET /health/db: verify the backend can connect to Postgres.

@@ -3,7 +3,6 @@ from time import perf_counter
 from typing import Any
 
 from app.domain.operators import HIDDEN_TAGS, ALLOWED_TAGS, OPERATORS, FilterSpec, normalize_filter_specs
-from app.services.orthanc_client import OrthancClient
 from app.services.orthanc_tags import normalize_orthanc_dicom_tags, safe_get_full
 
 
@@ -20,7 +19,7 @@ def _summarize_stats(stats_counters: dict[str, Counter]) -> dict[str, dict[str, 
 
 
 class QueryService:
-    def __init__(self, orthanc: OrthancClient) -> None:
+    def __init__(self, orthanc: Any) -> None:
         self.orthanc = orthanc
 
     def run(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -70,9 +69,12 @@ class QueryService:
         return {
             "ok": True,
             "root": self.orthanc.base_url,
-            "pacs": True,
+            "source": getattr(self.orthanc, "source_name", "orthanc"),
+            "source_info": self.source_info(),
+            "pacs": getattr(self.orthanc, "source_name", "orthanc") == "orthanc",
             "filters": usable_filters,
             "total_instances_in_pacs": total_instances,
+            "total_instances": total_instances,
             "total_series_found": len(series_ids),
             "match_count": len(matched),
             "matches": [item["id"] for item in matched],
@@ -89,11 +91,24 @@ class QueryService:
             total_series += 1
             try:
                 series_meta = self.orthanc.get_series(series_id)
+                series_meta = self._with_study_tags(series_meta, {})
             except Exception:
                 continue
 
-            for tag, value in series_meta.get("MainDicomTags", {}).items():
-                stats_counters.setdefault(tag, Counter())[_stats_key(value)] += 1
+            counted_tags: set[str] = set()
+            for section_name in ("MainDicomTags", "StudyMainDicomTags", "PatientMainDicomTags"):
+                for tag, value in series_meta.get(section_name, {}).items():
+                    if tag in HIDDEN_TAGS:
+                        continue
+                    stats_counters.setdefault(tag, Counter())[_stats_key(value)] += 1
+                    counted_tags.add(tag)
+
+            for tag in ALLOWED_TAGS:
+                if tag in counted_tags:
+                    continue
+                value = safe_get_full(series_meta, tag)
+                if value is not None:
+                    stats_counters.setdefault(tag, Counter())[_stats_key(value)] += 1
 
             for instance in self.orthanc.get_series_instances(series_id):
                 instance_id = instance.get("ID") if isinstance(instance, dict) else None
@@ -138,7 +153,23 @@ class QueryService:
             "study_description": safe_get_full(meta, "StudyDescription") or "",
             "series_description": safe_get_full(meta, "SeriesDescription") or "",
             "body_part_examined": safe_get_full(meta, "BodyPartExamined") or "",
-            "instances": len(meta.get("Instances", [])),
+            "instances": self._series_instance_count(meta),
+        }
+
+    def _series_instance_count(self, meta: dict[str, Any]) -> int:
+        instances = meta.get("Instances")
+        if isinstance(instances, list):
+            return len(instances)
+        count = meta.get("InstancesCount")
+        return count if isinstance(count, int) and count > 0 else 0
+
+    def source_info(self) -> dict[str, Any]:
+        if hasattr(self.orthanc, "source_info"):
+            info = self.orthanc.source_info()
+            return info if isinstance(info, dict) else {}
+        return {
+            "ActiveSource": getattr(self.orthanc, "source_name", "orthanc"),
+            "Root": getattr(self.orthanc, "base_url", ""),
         }
 
     def _with_study_tags(self, meta: dict[str, Any], study_cache: dict[str, dict[str, Any]]) -> dict[str, Any]:

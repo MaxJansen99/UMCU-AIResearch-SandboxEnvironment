@@ -606,6 +606,69 @@ DynamicFilters.tsx
 -> frontend renders DynamicTable + DynamicStatsPanel
 ```
 
+## Query Data Sources
+
+De querylaag kan metadata uit Orthanc/PACS of uit CSV lezen. De frontend blijft hetzelfde `/api/query` contract gebruiken.
+
+Configuratie:
+
+```text
+QUERY_DATA_SOURCE=orthanc  # default, gebruik Orthanc/PACS
+QUERY_DATA_SOURCE=csv      # gebruik alleen CSV
+QUERY_DATA_SOURCE=auto     # probeer Orthanc, val terug op CSV bij bronfout
+QUERY_CSV_FILE=/csv/metadata.csv
+```
+
+In Docker Compose is `/csv` gemount vanaf:
+
+```text
+query tool/csv-data
+```
+
+Voor CSV gebruik:
+
+```powershell
+cd "C:\dev\UMC\query tool"
+mkdir csv-data
+# plaats metadata.csv in csv-data
+docker compose up --build
+```
+
+De CSV-loader accepteert DICOM-achtige kolomnamen en logische aliases. Voorbeelden:
+
+```text
+Modality / modality
+StudyDate / study_date / date
+BodyPartExamined / body_part_examined / body_part
+PatientBirthDate / patient_birth_date / birth_date / date_of_birth
+PatientSex / patient_sex / sex / gender
+StudyInstanceUID / study_instance_uid / study_uid
+SeriesInstanceUID / series_instance_uid / series_uid
+SeriesDescription / series_description / series
+StudyDescription / study_description / study
+Images / images / instances / instance_count
+```
+
+CSV-output wordt intern omgezet naar dezelfde serie-achtige response die Orthanc gebruikt:
+
+```text
+matched_series
+stats
+match_count
+total_series_found
+total_instances_in_pacs
+source
+source_info
+```
+
+Beperkingen van CSV in deze fase:
+
+```text
+CSV ondersteunt zoeken/filteren/resultaten tonen.
+CSV levert geen DICOM instance files voor approved exports.
+Request/export workflow blijft Orthanc-gebaseerd.
+```
+
 ## Selection Behavior
 
 The results table shows series/scans rows.

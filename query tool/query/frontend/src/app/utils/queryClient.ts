@@ -66,6 +66,15 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
   const backendFilters: Array<[string, string, unknown]> = [];
 
   for (const [header, config] of Object.entries(filters)) {
+    if (config.type === 'dateRanges' && Array.isArray(config.value) && config.value.length > 0) {
+      backendFilters.push([
+        header,
+        'date in ranges',
+        config.value as Array<{ min: string; max: string }>
+      ]);
+      continue;
+    }
+
     if (config.type === 'ageRanges' && Array.isArray(config.value) && config.value.length > 0) {
       backendFilters.push([
         header,

@@ -40,6 +40,8 @@ services:
       QUERY_HOST: "0.0.0.0"
       QUERY_TLS_CERT: /certs/server.crt
       QUERY_TLS_KEY: /certs/server.key
+      QUERY_DATA_SOURCE: "auto"
+      QUERY_CSV_FILE: "/csv/metadata.csv"
       QUERY_PACS_URL: "http://orthanc:8042"
       QUERY_PACS_USER: "orthanc"
       QUERY_PACS_PASSWORD: "orthanc"
@@ -52,6 +54,7 @@ services:
       APPROVED_EXPORT_ROOT: "/approved_exports"
     volumes:
       - ./idc-data:/data:ro
+      - ./csv-data:/csv:ro
       - query_certs:/certs
       - approved_exports:/approved_exports
     networks:
