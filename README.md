@@ -1,266 +1,616 @@
-# UMCU AI Research Sandbox Environment
+# UMC Radiologie Query Tool PoC
 
-## Table of Contents
+Actuele projectdocumentatie voor de UMC Radiologie Query Tool proof of concept.
 
-- [Description](#description)
-- [Installation](#installation)
-  - [Prerequisites](#prerequisites)
-  - [Setup](#setup)
-    - [SSL/TLS Certificates](#ssltls-certificates)
-    - [Authentication Credentials](#authentication-credentials)
-    - [Start The Environment](#start-the-environment)
-- [Usage Guide](#usage-guide)
-  - [On Localhost (for Development)](#on-localhost-for-development)
-  - [On Production Server (with Domain)](#on-production-server-with-domain)
+De oude Docker Registry sandbox-documentatie is vervangen door deze README, omdat de repository nu draait om de Query Tool PoC. De test-agent documentatie staat apart in `query tool/test-agent/README.md` en is bewust niet samengevoegd.
 
-## Description
+## Doel
 
-This repository provides a private Docker Registry infrastructure with secure access controls. The environment consists of:
+De applicatie laat zien hoe onderzoekers DICOM-metadata kunnen doorzoeken, resultaten kunnen filteren, studies/series kunnen selecteren en een selectie-aanvraag kunnen indienen bij een datamanager. De datamanager kan aanvragen beoordelen, goedkeuren of afwijzen.
 
-- **Docker Registry**: A containerized private registry for storing and managing Docker images
-- **NGINX Reverse Proxy**: Acts as the front-facing server with HTTPS termination and basic authentication
-- **SSL/TLS Support**: Configured for encrypted communication
-- **Basic Authentication**: Protects registry access using htpasswd credentials
-- **Persistent Storage**: Registry data persists across container restarts
+De querylaag ondersteunt meerdere databronnen:
 
-The setup is designed for internal use within the UMCU AI Research project and can be deployed for development, testing, and production sandbox environments.
+- Orthanc/PACS als primaire bron.
+- CSV als fallback of demo/testbron.
+- Auto mode: eerst Orthanc proberen, daarna CSV als fallback.
 
-## Installation
+De frontend blijft hetzelfde werken, ongeacht of de querydata uit Orthanc of CSV komt.
 
-### Prerequisites
+## Demo Accounts
 
-Before starting the environment, make sure the following are available:
+```text
+Researcher
+username: researcher_demo
+password: researcher_demo
 
-- Docker Engine
-- Docker Compose
-- `htpasswd` from Apache Httpd
-- Access to ports `80` and `443` on the host machine
-
-### Installation Instructions
-
-#### Windows
-
-1. **Install Docker Desktop**:
-   - Download and install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-   - Ensure WSL 2 backend is enabled
-
-2. **Install OpenSSL**:
-   - Download and install OpenSSL from [SLProWeb](https://slproweb.com/products/Win32OpenSSL.html)
-   - Add OpenSSL to your system PATH
-
-3. **Install htpasswd**:
-   - Use WSL or install Apache HTTP Server from [Apache Lounge](https://www.apachelounge.com/)
-
-#### macOS
-
-1. **Install Docker Desktop**:
-   - Download and install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
-
-2. **Install OpenSSL**:
-   - Already included in macOS, but you can install the latest version via Homebrew:
-
-   ```bash
-   brew install openssl
-   ```
-
-3. **Install htpasswd**:
-   - Install via Homebrew:
-
-   ```bash
-   brew install httpd
-   ```
-
-#### Linux
-
-1. **Install Docker Engine**:
-   - Follow the official Docker installation guide for your distribution:
-   - [Ubuntu/Debian](https://docs.docker.com/engine/install/ubuntu/)
-   - [RedHat/Fedora](https://docs.docker.com/engine/install/fedora/)
-   - [Other distributions](https://docs.docker.com/engine/install/)
-
-2. **Install OpenSSL**:
-
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get install openssl
-   
-   # RedHat/Fedora
-   sudo dnf install openssl
-   ```
-
-3. **Install htpasswd**:
-
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get install apache2-utils
-   
-   # RedHat/Fedora
-   sudo dnf install httpd-tools
-   ```
-
-4. **Add user to docker group**:
-
-   ```bash
-   sudo usermod -aG docker $USER
-   ```
-
-   Log out and back in for the changes to take effect.
-
-### Docker group
-
-Make sure your user is part of the `docker` group, so Docker commands can be run without `sudo`:
-
-```bash
-sudo usermod -aG docker $USER
+Datamanager
+username: datamanager_demo
+password: datamanager_demo
 ```
 
-This updates your group membership for the current shell. If that does not work, log out and back in again.
+Wachtwoorden worden als bcrypt hash opgeslagen in Postgres.
 
-### Setup
+## Snel Starten
 
-#### SSL/TLS Certificates
+Vanaf de repository root:
 
-The Docker Compose file is set up for **localhost development by default**. For production with a domain, you need to switch the mounted NGINX config in `docker-compose.yaml`.
-
-##### Option A: Local Development
-
-```bash
-# Generate self-signed certificates for localhost
-mkdir -p nginx/ssl/live/localhost
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout nginx/ssl/live/localhost/privkey.pem \
-  -out nginx/ssl/live/localhost/fullchain.pem \
-  -subj "/CN=localhost"
+```powershell
+cd "C:\dev\UMC\query tool"
+docker compose up --build
 ```
 
-`docker-compose.yaml` already mounts `nginx/conf.d/local.conf` by default, so no Compose changes are needed for localhost.
+Open daarna:
 
-##### Option B: Production with Domain
-
-If you have a real domain and want to use Certbot:
-
-1. **Generate Certbot certificates:**
-
-```bash
-mkdir -p nginx/ssl
-docker run --rm \
-  -v "$(pwd)/nginx/ssl:/etc/letsencrypt" \
-  -p 80:80 \
-  certbot/certbot:v5.5.0 certonly \
-  --standalone \
-  --agree-tos \
-  --email email@example.com \
-  -d production.example.com
+```text
+Frontend: http://localhost:3000/login
+Backend health: http://localhost:8000/health
+Database health: http://localhost:8000/health/db
+Orthanc: http://localhost:8042
 ```
 
-1. **Update the production NGINX config:**
-   - Edit `nginx/conf.d/production.conf`
-   - Replace `email@example.com` with your real email
-   - Replace `production.example.com` with your real domain
-   - Verify the certificate paths match your Certbot output
+Orthanc login:
 
-2. **Switch Docker Compose to production:**
-   - Edit `docker-compose.yaml`
-   - Replace the `local.conf` volume mount with `production.conf`
-   - Keep only one of the two mounts enabled at a time
-
-#### Authentication Credentials
-
-Create basic authentication credentials using htpasswd:
-
-```bash
-mkdir -p nginx/auth
-htpasswd -Bbn USERNAME PASSWORD > nginx/auth/registry.htpasswd
+```text
+username: orthanc
+password: orthanc
 ```
 
-Replace `USERNAME` and `PASSWORD` with your desired credentials.
+## Docker Services
 
-#### Start The Environment
+De Docker Compose file staat in:
 
-Start all services with Docker Compose:
-
-```bash
-docker compose up -d
+```text
+query tool/docker-compose.yml
 ```
 
-To view logs:
+Belangrijkste containers:
 
-```bash
-docker compose logs -f
+```text
+dicom-frontend   React frontend via NGINX, host poort 3000
+dicom-query      Python backend API, host poort 8000
+dicom-postgres   PostgreSQL database, host poort 5433
+orthanc          Orthanc PACS, host poort 8042
+dicom-importer   optionele DICOM import job, profile import
+test-client      optionele curl healthcheck, profile test
 ```
 
-To stop the environment:
+Normaal starten:
 
-```bash
+```powershell
+docker compose up --build
+```
+
+Starten zonder rebuild:
+
+```powershell
+docker compose up
+```
+
+Stoppen:
+
+```powershell
 docker compose down
 ```
 
-## Usage Guide
+Alles resetten inclusief volumes:
 
-### On Localhost
-
-After generating the self-signed certificates, configure Docker to allow the local registry:
-
-```bash
-sudo mkdir -p /etc/docker
+```powershell
+docker compose down -v
+docker compose up --build
 ```
 
-Restart Docker:
+## Databronnen Voor Query
 
-```bash
-sudo systemctl restart docker
+De backend kiest de querybron via environment variables.
+
+```text
+QUERY_DATA_SOURCE=orthanc  # alleen Orthanc/PACS
+QUERY_DATA_SOURCE=csv      # alleen CSV
+QUERY_DATA_SOURCE=auto     # Orthanc eerst, CSV fallback bij fout
+QUERY_CSV_FILE=/csv/metadata.csv
 ```
 
-After that:
+In Docker Compose wordt `/csv` gemount vanaf:
 
-**Log in:**
-
-```bash
-docker login localhost
+```text
+query tool/csv-data
 ```
 
-**Tag an image:**
+Voor CSV mode:
 
-```bash
-docker tag my-image:latest localhost/my-image:latest
+```powershell
+cd "C:\dev\UMC\query tool"
+mkdir csv-data
+# plaats metadata.csv in csv-data
+docker compose up --build
 ```
 
-**Push the image:**
+De CSV-loader accepteert DICOM-achtige kolomnamen en logische aliases, bijvoorbeeld:
 
-```bash
-docker push localhost/my-image:latest
+```text
+Modality / modality
+StudyDate / study_date / date
+BodyPartExamined / body_part_examined / body_part / bodypart
+PatientBirthDate / patient_birth_date / birth_date / date_of_birth
+PatientSex / patient_sex / sex / gender
+StudyInstanceUID / study_instance_uid / study_uid
+SeriesInstanceUID / series_instance_uid / series_uid
+Images / images / instances / instance_count
 ```
 
-**Pull the image:**
+CSV-data wordt intern omgezet naar een Orthanc-achtig querymodel met dezelfde responsevelden voor de frontend:
 
-```bash
-docker pull localhost/my-image:latest
+```text
+matched_series
+stats
+match_count
+total_series_found
+total_instances
+source
+source_info
 ```
 
-### On Production Server
+Belangrijke beperking: CSV ondersteunt zoeken, filteren en resultaten tonen, maar levert geen DICOM instance files voor approved exports. De request/exportflow blijft Orthanc-gebaseerd.
 
-After setting up with Certbot certificates and switching `docker-compose.yaml` to `nginx/conf.d/production.conf`:
+## Frontend Functionaliteit
 
-**Log in:**
+Researcher:
 
-```bash
-docker login your-domain.com
+- Login met researcher account.
+- DICOM-metadata zoeken en filteren via dezelfde querytool voor Orthanc en CSV.
+- Filtersecties voor Modality, Body Part, Study Date en Patient.
+- Modality blijft standaard open; andere filtersecties zijn inklapbaar.
+- Resetoptie per filtersectie.
+- Active filter chips zijn verwijderbaar met een kruisje.
+- Age ondersteunt meerdere zelfgekozen leeftijdsranges.
+- Study Date ondersteunt meerdere zelfgekozen datumranges.
+- Body Part wordt dynamisch gevuld vanuit beschikbare data.
+- Body Part is alfabetisch gesorteerd en doorzoekbaar.
+- Lege bodypart-waarden worden alleen als `Unknown` getoond als ze echt in de data voorkomen.
+- Resultaten staan in een tabel met selectie-checkboxes.
+- Selecties blijven onthouden over filter/search rondes.
+- Onderzoeker kan een aanvraag indienen en eigen aanvragen volgen via "Mijn aanvragen".
+
+Datamanager:
+
+- Login met datamanager account.
+- Ziet pending aanvragen van researchers.
+- Kan details bekijken: titel, status, filters, selected studies en basis metadata.
+- Kan aanvragen goedkeuren of afwijzen.
+- Afwijzen vereist een reden.
+- Na goedkeuring wordt een server-side approved export manifest voorbereid.
+
+## Frontend Code
+
+Pad:
+
+```text
+query tool/query/frontend
 ```
 
-**Tag an image:**
+Tech:
 
-```bash
-docker tag my-image:latest your-domain.com/my-image:latest
+```text
+React
+TypeScript
+Vite
+Tailwind CSS
+lucide-react icons
+NGINX static hosting in Docker
 ```
 
-**Push the image:**
+Belangrijke files:
 
-```bash
-docker push your-domain.com/my-image:latest
+```text
+src/app/App.tsx
+- route guard
+- researcher dashboard
+- filter state naar query mapping
+- selectie en submit flow
+- mijn aanvragen
+
+src/app/components/DynamicFilters.tsx
+- filter UI
+- reset/chips
+- multiple Age ranges
+- multiple Study Date ranges
+- dynamische BodyPart filter
+
+src/app/components/DynamicTable.tsx
+- result table
+- row selectie
+
+src/app/components/DatamanagerPage.tsx
+- pending inbox
+- detail view
+- approve/reject flow
+
+src/app/utils/queryClient.ts
+- /query API client
+- frontend filters naar backend filters
+- response mapping naar frontend rows
+
+src/app/utils/requestClient.ts
+- request workflow API client
 ```
 
-**Pull the image:
+Frontend API calls lopen via NGINX:
 
-```bash
-docker pull your-domain.com/my-image:latest
+```text
+/api/auth/login    -> backend /auth/login
+/api/auth/me       -> backend /auth/me
+/api/query         -> backend /query
+/api/requests/...  -> backend /requests/...
 ```
+
+## Backend Functionaliteit
+
+Pad:
+
+```text
+query tool/query/app
+```
+
+Tech:
+
+```text
+Python 3.11
+ThreadingHTTPServer
+requests voor Orthanc
+psycopg voor Postgres
+passlib + bcrypt voor password hashing
+server-side in-memory bearer sessions
+```
+
+Belangrijke files:
+
+```text
+app/main.py
+- start backend
+- bouwt datasource: orthanc, csv of auto
+- initialiseert database en services
+
+app/core/config.py
+- environment configuratie
+- QUERY_DATA_SOURCE
+- QUERY_CSV_FILE
+- Orthanc en Postgres settings
+
+app/api/server.py
+- HTTP routes
+- JSON request/response
+- auth endpoints
+- query endpoint
+- request workflow endpoints
+
+app/services/query_service.py
+- query uitvoeren op gekozen datasource
+- filter matching
+- stats aggregatie
+- frontend-compatible response
+
+app/services/orthanc_client.py
+- Orthanc HTTP client
+
+app/services/csv_data_source.py
+- CSV inlezen
+- tolerante kolommapping
+- CSV naar Orthanc-achtig metadata model
+- CSV-validatie en waarschuwingen
+
+app/services/fallback_data_source.py
+- auto mode fallback van Orthanc naar CSV
+
+app/services/request_workflow.py
+- create request
+- add selected studies
+- submit
+- list mine/pending
+- approve/reject
+- statusregels
+
+app/services/export_service.py
+- approved export manifest
+- DICOM file export vanuit Orthanc
+- hash-based reuse voor identieke exports
+```
+
+## Backend API
+
+Health:
+
+```text
+GET /health
+GET /health/db
+```
+
+Auth:
+
+```text
+POST /auth/login
+GET  /auth/me
+```
+
+Query:
+
+```text
+POST /query
+```
+
+Voorbeeld query body:
+
+```json
+{
+  "filters": [
+    ["Modality", "in", ["MR"]]
+  ],
+  "stats_tags": ["Modality", "StudyDate", "BodyPartExamined", "PatientSex", "PatientBirthDate"]
+}
+```
+
+Request workflow:
+
+```text
+POST /requests
+POST /requests/{id}/items
+POST /requests/{id}/submit
+GET  /requests/mine
+GET  /requests/pending
+POST /requests/{id}/decision
+```
+
+Decision body:
+
+```json
+{
+  "decision": "APPROVED",
+  "reason": "Akkoord"
+}
+```
+
+Reject body:
+
+```json
+{
+  "decision": "REJECTED",
+  "reason": "Onderbouwing ontbreekt"
+}
+```
+
+## Database
+
+Postgres draait in Docker service `postgres` met containernaam `dicom-postgres`.
+
+Connect via terminal:
+
+```powershell
+cd "C:\dev\UMC\query tool"
+docker compose exec postgres psql -U dicom_query -d dicom_query
+```
+
+Connect via database tool vanaf host:
+
+```text
+Type: PostgreSQL
+Host: localhost
+Port: 5433
+Database: dicom_query
+Username: dicom_query
+Password: dicom_query
+```
+
+Tabellen:
+
+```text
+users
+selection_requests
+selection_items
+approvals
+request_exports
+request_export_items
+```
+
+Kernmodel:
+
+```text
+users
+- id
+- username
+- password_hash
+- role: researcher | datamanager
+
+selection_requests
+- id
+- created_by_user_id -> users.id
+- title
+- status: DRAFT | SUBMITTED | APPROVED | REJECTED
+- filters_json
+- created_at
+
+selection_items
+- id
+- request_id -> selection_requests.id
+- orthanc_study_id
+
+approvals
+- id
+- request_id -> selection_requests.id
+- decided_by_user_id -> users.id
+- decision: APPROVED | REJECTED
+- reason
+- decided_at
+
+request_exports
+- id
+- request_id -> selection_requests.id
+- request_hash
+- reused_from_export_id -> request_exports.id
+- status: PENDING | READY | FAILED
+- export_path
+- manifest_path
+- error
+- created_at
+- updated_at
+
+request_export_items
+- id
+- export_id -> request_exports.id
+- orthanc_study_id
+- orthanc_series_id
+- orthanc_instance_id
+- stored_file
+- linked_file
+- created_at
+```
+
+Handige queries:
+
+```sql
+SELECT id, username, role FROM users ORDER BY id;
+
+SELECT id, created_by_user_id, title, status, filters_json, created_at
+FROM selection_requests
+ORDER BY id;
+
+SELECT id, request_id, orthanc_study_id
+FROM selection_items
+ORDER BY request_id, id;
+
+SELECT id, request_id, decided_by_user_id, decision, reason, decided_at
+FROM approvals
+ORDER BY request_id, id;
+
+SELECT id, request_id, request_hash, reused_from_export_id, status, export_path, manifest_path, error
+FROM request_exports
+ORDER BY id;
+```
+
+## Status Flow
+
+```text
+DRAFT -> SUBMITTED -> APPROVED
+DRAFT -> SUBMITTED -> REJECTED
+```
+
+Researchers maken DRAFT requests, voegen selected studies toe en submitten daarna. Datamanagers zien alleen SUBMITTED requests in de pending inbox.
+
+## Approved Exports
+
+Na approval probeert de backend approved DICOM files klaar te zetten vanuit Orthanc.
+
+Proces:
+
+```text
+1. bereken request_hash op basis van selected Orthanc study IDs
+2. check of een READY export met dezelfde hash bestaat
+3. hergebruik bestaande files via links wanneer mogelijk
+4. download anders DICOM instances vanuit Orthanc
+5. schrijf manifest.json onder /approved_exports/requests/<request_id>
+6. sla exportstatus en export items op in Postgres
+```
+
+Storage layout in container:
+
+```text
+/approved_exports/
+  instances/
+    <orthanc_instance_id>.dcm
+  requests/
+    <request_id>/
+      manifest.json
+      <orthanc_instance_id>.dcm
+```
+
+Inspecteren:
+
+```powershell
+docker compose exec dicom-query ls /approved_exports/requests
+docker compose exec dicom-query ls /approved_exports/instances
+docker compose exec dicom-query cat /approved_exports/requests/<request_id>/manifest.json
+```
+
+Let op: dit exportdeel is afhankelijk van Orthanc en is nog niet bron-onafhankelijk voor CSV.
+
+## Demo Flow
+
+Researcher:
+
+```text
+1. Open http://localhost:3000/login
+2. Login als researcher_demo
+3. Filter metadata, bijvoorbeeld Modality = MR
+4. Gebruik eventueel BodyPart search, Age ranges of Study Date ranges
+5. Selecteer een of meer rows
+6. Vul een aanvraag titel in
+7. Klik Submit for approval
+8. Controleer status in "Mijn aanvragen"
+```
+
+Datamanager:
+
+```text
+1. Logout
+2. Login als datamanager_demo
+3. Open /datamanager
+4. Klik een pending request
+5. Bekijk filters en selected studies
+6. Approve of reject met reden
+```
+
+## Tests En Checks
+
+Frontend:
+
+```powershell
+cd "C:\dev\UMC\query tool\query\frontend"
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+Backend compile check:
+
+```powershell
+cd "C:\dev\UMC"
+.\.venv\Scripts\python.exe -m py_compile "query tool\query\app\main.py"
+```
+
+Functionele checks die gebruikt zijn:
+
+```text
+Orthanc mode: QUERY_DATA_SOURCE=orthanc, querytool gebruikt Orthanc.
+CSV mode: QUERY_DATA_SOURCE=csv, querytool gebruikt metadata.csv.
+Auto mode: QUERY_DATA_SOURCE=auto, Orthanc eerst en CSV fallback bij bronfout.
+Filter UI: reset per sectie, verwijderbare chips, multiple Study Date ranges.
+BodyPart: dynamische waarden, alfabetisch en doorzoekbaar.
+```
+
+## Ports
+
+```text
+3000 frontend
+8000 backend direct API/debug
+8042 Orthanc
+5433 Postgres op host
+```
+
+## Huidige Beperkingen
+
+- Sessions zijn server-side in-memory. Restart van `dicom-query` maakt login tokens ongeldig.
+- Er is nog geen user management UI.
+- Alleen demo users worden automatisch aangemaakt.
+- Datamanagers zien alle pending requests; er is geen assignment model.
+- Datamanager history is nog geen volledige archive UI.
+- CSV ondersteunt query/filter/resultaten, maar geen DICOM instance download/export.
+- Approved export is afhankelijk van Orthanc en moet voor echte UMC-infra nog afgestemd worden.
+- Frontend build geeft een bekende Vite chunk-size warning door de brede UI dependency set.
+- Er kunnen lokale smoke-test aanvragen in Postgres volumes blijven staan.
+
+## Test-Agent
+
+De test-agent documentatie staat apart en is niet samengevoegd:
+
+```text
+query tool/test-agent/README.md
+```
+
+Deze map hoort bij de Sprint 5 test/review/verify werkwijze.

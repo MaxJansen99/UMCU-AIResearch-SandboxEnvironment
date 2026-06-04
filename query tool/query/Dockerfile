@@ -3,7 +3,6 @@ FROM python:3.11-slim
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1
-ENV DICOM_ROOT=/data
 ENV QUERY_PORT=8000
 
 # openssl is needed to create self-signed cert on startup if no cert is provided
@@ -14,9 +13,10 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY app ./app
 COPY query.py .
 COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
 VOLUME ["/certs"]
 EXPOSE 8000
