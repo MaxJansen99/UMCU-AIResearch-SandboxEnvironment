@@ -48,8 +48,13 @@ class QueryService:
                 query_body[tag_name] = expected
 
         # geef series ID's die bij metadata selectie passen
-        series_ids = self.orthanc.find_series(query_body)
+        series_ids = self.orthanc.find_series(query_body if query_body else None)
         stats_counters: dict[str, Counter] = {tag: Counter() for tag in stats_tags}
+        stats_counters_excluding_self: dict[str, Counter] = {tag: Counter() for tag in stats_tags}
+        filters_excluding_tag: dict[str, list[FilterSpec]] = {
+            tag: [spec for spec in usable_filters if spec[0] != tag]
+            for tag in stats_tags
+        }
         matched: list[dict[str, Any]] = []
         study_cache: dict[str, dict[str, Any]] = {}
 
@@ -66,6 +71,27 @@ class QueryService:
                 if value is not None:
                     stats_counters[tag][_stats_key(value)] += 1
 
+        for tag in stats_tags:
+            if all(spec[0] != tag for spec in usable_filters):
+                stats_counters_excluding_self[tag] = stats_counters[tag].copy()
+                continue
+
+            query_body_without_tag: dict[str, Any] = {}
+            for tag_name, operator_name, expected in usable_filters:
+                if operator_name == "==" and tag_name != tag:
+                    query_body_without_tag[tag_name] = expected
+
+            tag_series_ids = self.orthanc.find_series(query_body_without_tag if query_body_without_tag else None)
+            for series_id in tag_series_ids:
+                meta = self.orthanc.get_series(series_id)
+                meta = self._with_study_tags(meta, study_cache)
+                if not self._matches(meta, filters_excluding_tag[tag]):
+                    continue
+
+                value = safe_get_full(meta, tag)
+                if value is not None:
+                    stats_counters_excluding_self[tag][_stats_key(value)] += 1
+
         return {
             "ok": True,
             "root": self.orthanc.base_url,
@@ -80,6 +106,7 @@ class QueryService:
             "matches": [item["id"] for item in matched],
             "matched_series": [self._series_summary(item["id"], item["meta"]) for item in matched],
             "stats": _summarize_stats(stats_counters),
+            "stats_excluding_filters": _summarize_stats(stats_counters_excluding_self),
         }
 
     def collect_all_stats(self) -> tuple[dict[str, dict[str, int]], int, int]:

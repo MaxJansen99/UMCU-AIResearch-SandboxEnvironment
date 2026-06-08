@@ -25,6 +25,33 @@ def _not_in(actual: Any, expected: Any) -> bool:
     return actual is not None and expected is not None and actual not in expected
 
 
+def _try_parse_number(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value))
+    except ValueError:
+        return None
+
+
+def _compare_numeric(actual: Any, expected: Any, comparator: str) -> bool:
+    actual_num = _try_parse_number(actual)
+    expected_num = _try_parse_number(expected)
+    if actual_num is None or expected_num is None:
+        return False
+    if comparator == ">":
+        return actual_num > expected_num
+    if comparator == ">=":
+        return actual_num >= expected_num
+    if comparator == "<":
+        return actual_num < expected_num
+    if comparator == "<=":
+        return actual_num <= expected_num
+    return False
+
+
 def _date_in_ranges(actual: Any, expected: Any) -> bool:
     if actual is None or not isinstance(expected, list):
         return False
@@ -47,6 +74,28 @@ def _date_in_ranges(actual: Any, expected: Any) -> bool:
     return False
 
 
+def _numeric_in_ranges(actual: Any, expected: Any) -> bool:
+    if actual is None or not isinstance(expected, list):
+        return False
+
+    actual_num = _try_parse_number(actual)
+    if actual_num is None:
+        return False
+
+    for value_range in expected:
+        if not isinstance(value_range, dict):
+            continue
+        min_value = _try_parse_number(value_range.get("min"))
+        max_value = _try_parse_number(value_range.get("max"))
+        if min_value is not None and actual_num < min_value:
+            continue
+        if max_value is not None and actual_num > max_value:
+            continue
+        return True
+
+    return False
+
+
 OPERATORS: dict[str, FilterOperator] = {
     "==": lambda actual, expected: actual == expected,
     "!=": lambda actual, expected: actual != expected,
@@ -60,6 +109,7 @@ OPERATORS: dict[str, FilterOperator] = {
     "in": _in,
     "not in": _not_in,
     "date in ranges": _date_in_ranges,
+    "numeric in ranges": _numeric_in_ranges,
     "is None": lambda actual, _: actual is None,
     "not None": lambda actual, _: actual is not None,
 }

@@ -1,11 +1,12 @@
 import { ChevronDown, Filter, X } from 'lucide-react';
 import { DicomStats, FilterConfig, analyzeHeader } from '../utils/dicomLoader';
 import { formatHeaderLabel } from '../utils/formatters';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 
 interface DynamicFiltersProps {
   stats: DicomStats | null;
   activeFilters: Array<{ header: string; value: any }>;
+  statsExcludingSelf: Record<string, Record<string, number>>;
   onFiltersChange: (filters: Array<{ header: string; value: any }>) => void;
   onSearch: (filters?: Array<{ header: string; value: any }>) => void;
   isLoading: boolean;
@@ -74,6 +75,7 @@ const FILTER_SECTIONS = [
 
 export function DynamicFilters({
   stats,
+  statsExcludingSelf,
   activeFilters,
   onFiltersChange,
   onSearch,
@@ -85,6 +87,32 @@ export function DynamicFilters({
   const [bodyPartSearch, setBodyPartSearch] = useState('');
   const [ageRangeDraft, setAgeRangeDraft] = useState({ min: '', max: '' });
   const [studyDateRangeDraft, setStudyDateRangeDraft] = useState({ min: '', max: '' });
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActiveFiltersRef = useRef<string>('');
+
+  // Auto-search with debouncing when filters change (for cascading filter updates)
+  useEffect(() => {
+    const serializedFilters = JSON.stringify(activeFilters);
+    if (serializedFilters === lastActiveFiltersRef.current) {
+      return;
+    }
+
+    lastActiveFiltersRef.current = serializedFilters;
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      onSearch(activeFilters);
+    }, 300); // 300ms debounce
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [activeFilters, onSearch]);
 
   const filterConfigs = useMemo(() => {
     if (!stats) return new Map<string, FilterConfig>();
@@ -121,6 +149,16 @@ export function DynamicFilters({
   const getFilterValue = (header: string) => {
     const filter = activeFilters.find(f => f.header === header);
     return filter?.value;
+  };
+
+  const getHeaderStatsForRendering = (header: string): Record<string, number> => {
+    const fallbackStats = stats?.stats?.[header] || {};
+    const hasHeaderFilter = activeFilters.some(filter => filter.header === header);
+    if (!hasHeaderFilter) {
+      return fallbackStats;
+    }
+
+    return statsExcludingSelf?.[header] || fallbackStats;
   };
 
   const toggleCategoricalValue = (header: string, option: string) => {
@@ -244,8 +282,19 @@ export function DynamicFilters({
         {selectedValues.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {selectedValues.map(value => (
-              <span key={value || '__unknown__'} className="px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs">
+              <span
+                key={value || '__unknown__'}
+                className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-1 text-xs text-blue-700"
+              >
                 {getOptionLabel(options, value)}
+                <button
+                  type="button"
+                  onClick={() => toggleCategoricalValue(header, value)}
+                  className="text-blue-500 hover:text-blue-800"
+                  aria-label={`Remove ${getOptionLabel(options, value)} filter`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </span>
             ))}
           </div>
@@ -286,7 +335,8 @@ export function DynamicFilters({
   };
 
   const renderFilterControl = (header: string) => {
-    const statsConfig = filterConfigs.get(header);
+    const headerStats = getHeaderStatsForRendering(header);
+    const statsConfig = analyzeHeader(header, headerStats);
     const config = getPresetFilterConfig(header, statsConfig) || statsConfig;
     if (!config) return null;
 
@@ -295,7 +345,7 @@ export function DynamicFilters({
     if (header === 'BodyPartExamined') {
       return renderCategoricalFilter(
         header,
-        getCategoricalOptions(header, { ...config, type: 'categorical' }, stats.stats[header] || {})
+        getCategoricalOptions(header, { ...config, type: 'categorical' }, headerStats)
       );
     }
 
@@ -437,7 +487,8 @@ export function DynamicFilters({
     }
 
     if (config.type === 'categorical') {
-      return renderCategoricalFilter(header, getCategoricalOptions(header, config, stats.stats[header] || {}));
+      const headerStats = getHeaderStatsForRendering(header);
+      return renderCategoricalFilter(header, getCategoricalOptions(header, config, headerStats));
     }
 
     if (config.type === 'text') {
@@ -668,7 +719,25 @@ function getCategoricalOptions(
       }
     }
 
-    return options;
+    // Sort: enabled options by count (descending), then disabled options
+    return options.sort((a, b) => {
+      const aDisabled = a.disabled ? 1 : 0;
+      const bDisabled = b.disabled ? 1 : 0;
+      
+      // First, sort by disabled status (enabled first)
+      if (aDisabled !== bDisabled) {
+        return aDisabled - bDisabled;
+      }
+      
+      // Then, sort by count descending (highest first)
+      const countDiff = (b.count || 0) - (a.count || 0);
+      if (countDiff !== 0) {
+        return countDiff;
+      }
+      
+      // Finally, sort alphabetically
+      return a.label.localeCompare(b.label);
+    });
   }
 
   return config.values
@@ -677,7 +746,15 @@ function getCategoricalOptions(
       label: value || 'Unknown',
       count: counts[value] || 0,
     }))
-    .sort((left, right) => left.label.localeCompare(right.label));
+    .sort((a, b) => {
+      // Sort by count descending (highest first)
+      const countDiff = (b.count || 0) - (a.count || 0);
+      if (countDiff !== 0) {
+        return countDiff;
+      }
+      // Then by label alphabetically
+      return a.label.localeCompare(b.label);
+    });
 }
 
 function getPresetFilterConfig(header: string, statsConfig?: FilterConfig): FilterConfig | undefined {

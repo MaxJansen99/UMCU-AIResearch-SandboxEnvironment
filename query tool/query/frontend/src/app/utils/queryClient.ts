@@ -12,6 +12,7 @@ type QueryResponse = {
   ok: boolean;
   error?: string;
   stats?: Record<string, Record<string, number>>;
+  stats_excluding_filters?: Record<string, Record<string, number>>;
   matched_series?: Array<Record<string, unknown>>;
   match_count?: number;
   total_series_found?: number;
@@ -22,6 +23,7 @@ type QueryResponse = {
 type QueryResult = {
   stats: DicomStats;
   instances: DicomInstance[];
+  statsExcludingFilters: Record<string, Record<string, number>>;
 };
 
 export async function loadOrthancMetadata(): Promise<QueryResult> {
@@ -49,6 +51,7 @@ export async function queryOrthancMetadata(filters: DynamicFilters): Promise<Que
 
   const instances = (payload.matched_series || []).map(toDicomInstance);
   const stats = ensureCoreStats(payload.stats || {}, instances);
+  const statsExcludingFilters = ensureCoreStats(payload.stats_excluding_filters || {}, instances);
 
   return {
     stats: {
@@ -59,6 +62,7 @@ export async function queryOrthancMetadata(filters: DynamicFilters): Promise<Que
       instances,
     },
     instances,
+    statsExcludingFilters,
   };
 }
 
@@ -80,6 +84,15 @@ function toBackendFilters(filters: DynamicFilters): Array<[string, string, unkno
         header,
         'date in ranges',
         ageRangesToBirthDateRanges(config.value as Array<{ min: number; max: number }>)
+      ]);
+      continue;
+    }
+
+    if (config.type === 'numeric' && Array.isArray(config.value) && config.value.length > 0) {
+      backendFilters.push([
+        header,
+        'numeric in ranges',
+        config.value as Array<{ min: number; max: number }>
       ]);
       continue;
     }

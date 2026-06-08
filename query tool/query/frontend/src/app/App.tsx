@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { DynamicFilters } from './components/DynamicFilters';
 import { DynamicTable } from './components/DynamicTable';
 import { DynamicStatsPanel } from './components/DynamicStatsPanel';
@@ -100,11 +100,14 @@ type ResearcherDashboardProps = {
 function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
   const [stats, setStats] = useState<DicomStats | null>(null);
   const [filterStats, setFilterStats] = useState<DicomStats | null>(null);
+  const [filterStatsExcludingSelf, setFilterStatsExcludingSelf] = useState<Record<string, Record<string, number>> | null>(null);
   const [allInstances, setAllInstances] = useState<DicomInstance[]>([]);
   const [filteredInstances, setFilteredInstances] = useState<DicomInstance[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedStudyIdsBySeriesId, setSelectedStudyIdsBySeriesId] = useState<Map<string, string>>(new Map());
   const [activeFilters, setActiveFilters] = useState<Array<{ header: string; value: any }>>([]);
+  const statsRef = useRef<DicomStats | null>(null);
+  const activeFiltersRef = useRef(activeFilters);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -130,6 +133,8 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
       const loadedStats = await loadDicomStats();
       setStats(loadedStats);
       setFilterStats(loadedStats);
+      setFilterStatsExcludingSelf(loadedStats.stats);
+      statsRef.current = loadedStats;
       
       // Generate instances from the stats
       const instances = generateInstancesFromStats(loadedStats);
@@ -144,16 +149,40 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
     }
   };
 
-  const handleSearch = async (filtersToApply = activeFilters) => {
-    if (!stats) return;
-    
+  useEffect(() => {
+    statsRef.current = stats;
+  }, [stats]);
+
+  useEffect(() => {
+    activeFiltersRef.current = activeFilters;
+  }, [activeFilters]);
+
+  const isNumericAgeField = (header: string, stats: DicomStats | null) => {
+    if (!stats) {
+      return false;
+    }
+
+    const headerValues = stats.stats[header];
+    if (!headerValues) {
+      return false;
+    }
+
+    const keys = Object.keys(headerValues);
+    return keys.length > 0 && keys.every(value => /^\d+$/.test(value) && value.length <= 3);
+  };
+
+  const handleSearch = useCallback(async (filtersToApply?: Array<{ header: string; value: any }>) => {
+    const currentStats = statsRef.current;
+    if (!currentStats) return;
+
+    const effectiveFilters = filtersToApply ?? activeFiltersRef.current;
     setIsLoading(true);
     setCurrentPage(0);
     
     // Convert activeFilters to DynamicFiltersType format
     const filters: DynamicFiltersType = {};
     
-    for (const filter of filtersToApply) {
+    for (const filter of effectiveFilters) {
       const { header, value } = filter;
       
       // Determine filter type
@@ -162,10 +191,15 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
         Array.isArray(value) &&
         value.every(item => typeof item === 'object' && item !== null)
       ) {
-        filters[header] = {
-          type: 'ageRanges',
-          value
-        };
+        filters[header] = isNumericAgeField(header, currentStats)
+          ? {
+              type: 'numeric',
+              value
+            }
+          : {
+              type: 'ageRanges',
+              value
+            };
       } else if (
         header === 'StudyDate' &&
         Array.isArray(value) &&
@@ -207,7 +241,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
         };
       } else if (typeof value === 'string') {
         // Could be categorical or text - check if it's an exact match or search
-        const headerValues = stats.stats[header];
+        const headerValues = currentStats.stats[header];
         if (headerValues && headerValues[value] !== undefined) {
           // Exact categorical match
           filters[header] = {
@@ -227,6 +261,8 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
     try {
       const result = await queryOrthancMetadata(filters);
       setStats(result.stats);
+      setFilterStats(result.stats);
+      setFilterStatsExcludingSelf(result.statsExcludingFilters || result.stats.stats);
       setAllInstances(result.instances);
       setFilteredInstances(result.instances);
     } catch (error) {
@@ -236,7 +272,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const loadMyRequests = async () => {
     try {
@@ -384,6 +420,7 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
             {/* Filter Controls */}
             <DynamicFilters
               stats={filterStats || stats}
+              statsExcludingSelf={filterStatsExcludingSelf || stats?.stats || {}}
               activeFilters={activeFilters}
               onFiltersChange={setActiveFilters}
               onSearch={handleSearch}
