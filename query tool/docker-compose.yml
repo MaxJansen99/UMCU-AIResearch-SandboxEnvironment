@@ -52,6 +52,9 @@ services:
       DB_USER: "dicom_query"
       DB_PASSWORD: "dicom_query"
       APPROVED_EXPORT_ROOT: "/approved_exports"
+      RFS_EXPORT_ROOT: "/approved_exports/rfs"
+      RFS_FOLDER_MAP_FILE: "/app/app/config/rfs_folders.yml"
+      RFS_REQUIRE_EXPLICIT_MAPPING: "true"
     volumes:
       - ./idc-data:/data:ro
       - ./csv-data:/csv:ro

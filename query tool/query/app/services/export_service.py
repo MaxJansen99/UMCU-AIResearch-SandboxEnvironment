@@ -10,6 +10,7 @@ from typing import Any
 from app.repositories.exports_repository import ExportsRepository
 from app.services.database import Database
 from app.services.orthanc_client import OrthancClient
+from app.services.rfs_folder_config import RfsFolderConfig
 
 
 SAFE_PATH_RE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -22,11 +23,16 @@ class ExportService:
         export_root: str,
         orthanc: OrthancClient | None = None,
         exports_repository: ExportsRepository | None = None,
+        rfs_export_root: str | None = None,
+        rfs_folder_map_file: str | None = None,
+        rfs_require_explicit_mapping: bool = True,
     ) -> None:
         self.database = database
         self.export_root = Path(export_root)
         self.orthanc = orthanc
         self.exports_repository = exports_repository or ExportsRepository()
+        self.rfs_export_root = Path(rfs_export_root) if rfs_export_root else self.export_root / "rfs"
+        self.rfs_folders = RfsFolderConfig(rfs_folder_map_file or "", rfs_require_explicit_mapping)
 
     def prepare_approved_export(self, request: dict[str, Any], decided_by: dict[str, Any]) -> dict[str, Any]:
         request_id = int(request["id"])
@@ -50,8 +56,18 @@ class ExportService:
                 exported_instances = self._reuse_export_items(reusable_export["id"], export_dir)
             else:
                 exported_instances = self._export_instances(request, export_dir)
-            manifest = self._manifest(request, decided_by, export_dir, exported_instances, request_hash, reusable_export)
+            rfs_delivery = self._prepare_rfs_delivery(request, export_dir, exported_instances)
+            manifest = self._manifest(
+                request,
+                decided_by,
+                export_dir,
+                exported_instances,
+                request_hash,
+                reusable_export,
+                rfs_delivery,
+            )
             manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            self._copy_manifest_to_rfs(manifest_path, rfs_delivery)
             self._replace_export_items(export["id"], exported_instances)
         except Exception as exc:
             return self._upsert_export(
@@ -149,6 +165,7 @@ class ExportService:
         exported_instances: list[dict[str, Any]],
         request_hash: str,
         reusable_export: dict[str, Any] | None,
+        rfs_delivery: dict[str, Any],
     ) -> dict[str, Any]:
         return {
             "request_id": request["id"],
@@ -169,11 +186,46 @@ class ExportService:
                 for item in request.get("items", [])
             ],
             "export_path": str(export_dir),
+            "rfs_delivery": rfs_delivery,
             "instance_count": len(exported_instances),
             "instances": exported_instances,
             "created_at": datetime.now(UTC).isoformat(),
-            "note": "Story 9 export. Same selections reuse earlier READY exports; otherwise DICOM files are downloaded and hardlinked.",
+            "note": "Approved export. Same selections reuse earlier READY exports; otherwise DICOM files are downloaded and hardlinked. RFS delivery is prepared only after datamanager approval.",
         }
+
+    def _prepare_rfs_delivery(
+        self,
+        request: dict[str, Any],
+        export_dir: Path,
+        exported_instances: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        creator = self.database.find_user_by_id(int(request["created_by_user_id"]))
+        username = creator["username"] if creator else f"user_{request['created_by_user_id']}"
+        user_folder = self.rfs_folders.folder_for_username(username)
+        target_dir = self.rfs_export_root / user_folder / f"request_{request['id']}"
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        delivered_files: list[str] = []
+        for item in exported_instances:
+            source_file = Path(item["linked_file"])
+            target_file = target_dir / source_file.name
+            make_hardlink(source_file, target_file)
+            delivered_files.append(str(target_file))
+
+        return {
+            "status": "PREPARED",
+            "username": username,
+            "source_export_path": str(export_dir),
+            "target_path": str(target_dir),
+            "file_count": len(delivered_files),
+            "files": delivered_files,
+        }
+
+    def _copy_manifest_to_rfs(self, manifest_path: Path, rfs_delivery: dict[str, Any]) -> None:
+        target_path = rfs_delivery.get("target_path")
+        if not target_path:
+            return
+        copy2(manifest_path, Path(str(target_path)) / manifest_path.name)
 
     def _find_reusable_export(self, request_hash: str, request_id: int) -> dict[str, Any] | None:
         with self.database.connect() as conn:

@@ -313,6 +313,7 @@ app/services/export_service.py
 - approved export manifest
 - DICOM file export vanuit Orthanc
 - hash-based reuse voor identieke exports
+- RFS-ready delivery naar een gebruiker-specifieke map na datamanager approval
 ```
 
 ## Backend API
@@ -506,7 +507,8 @@ Proces:
 3. hergebruik bestaande files via links wanneer mogelijk
 4. download anders DICOM instances vanuit Orthanc
 5. schrijf manifest.json onder /approved_exports/requests/<request_id>
-6. sla exportstatus en export items op in Postgres
+6. bereid een RFS-ready kopie/link voor onder de gebruiker-specifieke map
+7. sla exportstatus en export items op in Postgres
 ```
 
 Storage layout in container:
@@ -519,7 +521,35 @@ Storage layout in container:
     <request_id>/
       manifest.json
       <orthanc_instance_id>.dcm
+  rfs/
+    <researcher_username>/
+      request_<request_id>/
+        manifest.json
+        <orthanc_instance_id>.dcm
 ```
+
+De prototype RFS-mapping staat in:
+
+```text
+query tool/query/app/config/rfs_folders.yml
+```
+
+Voorbeeld:
+
+```yaml
+researcher_demo:
+  folder: researcher_demo
+```
+
+De backend leest deze mapping via:
+
+```text
+RFS_EXPORT_ROOT=/approved_exports/rfs
+RFS_FOLDER_MAP_FILE=/app/app/config/rfs_folders.yml
+RFS_REQUIRE_EXPLICIT_MAPPING=true
+```
+
+Dit is bewust een veilige prototype-inrichting: er wordt niet automatisch naar een echte externe RFS gepusht. De datamanager-approval is de HITL-stap; pas daarna wordt de RFS-ready map binnen de approved export volume voorbereid. Voor RFS/Samba staat expliciete user-folder mapping standaard aan, zodat de backend niet per ongeluk naar een ongecontroleerde fallbackmap schrijft.
 
 Inspecteren:
 
@@ -602,6 +632,7 @@ BodyPart: dynamische waarden, alfabetisch en doorzoekbaar.
 - Datamanager history is nog geen volledige archive UI.
 - CSV ondersteunt query/filter/resultaten, maar geen DICOM instance download/export.
 - Approved export is afhankelijk van Orthanc en moet voor echte UMC-infra nog afgestemd worden.
+- RFS-delivery is een lokaal prototypepad binnen `/approved_exports/rfs`; echte RFS-mounts en CI/CD approvals moeten nog apart worden ontworpen.
 - Frontend build geeft een bekende Vite chunk-size warning door de brede UI dependency set.
 - Er kunnen lokale smoke-test aanvragen in Postgres volumes blijven staan.
 

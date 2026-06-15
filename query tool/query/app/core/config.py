@@ -27,6 +27,13 @@ class Settings:
     db_user: str = os.environ.get("DB_USER", "dicom_query")
     db_password: str = os.environ.get("DB_PASSWORD", "dicom_query")
     approved_export_root: str = os.environ.get("APPROVED_EXPORT_ROOT", "/approved_exports")
+    rfs_export_root: str = os.environ.get("RFS_EXPORT_ROOT", "/approved_exports/rfs")
+    rfs_folder_map_file: str = os.environ.get("RFS_FOLDER_MAP_FILE", "/app/app/config/rfs_folders.yml")
+    rfs_require_explicit_mapping: bool = os.environ.get("RFS_REQUIRE_EXPLICIT_MAPPING", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
     @property
     def auth(self) -> tuple[str, str] | None:

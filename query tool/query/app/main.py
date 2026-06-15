@@ -41,7 +41,15 @@ def main() -> None:
     requests_repository = RequestsRepository()
     exports_repository = ExportsRepository()
     auth_service = AuthService(database, users_repository)
-    export_service = ExportService(database, settings.approved_export_root, orthanc, exports_repository)
+    export_service = ExportService(
+        database,
+        settings.approved_export_root,
+        orthanc,
+        exports_repository,
+        settings.rfs_export_root,
+        settings.rfs_folder_map_file,
+        settings.rfs_require_explicit_mapping,
+    )
     request_workflow = RequestWorkflowService(
         database,
         orthanc,

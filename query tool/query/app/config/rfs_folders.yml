@@ -1,0 +1,4 @@
+# Prototype RFS folder mapping.
+# Values must be relative folder names under RFS_EXPORT_ROOT.
+researcher_demo:
+  folder: researcher_demo
