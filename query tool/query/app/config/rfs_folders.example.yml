@@ -1,0 +1,13 @@
+# Example RFS/Samba folder mapping for production-like configuration.
+# Keys must match Query Tool usernames from the users table.
+# Folder values are relative to RFS_EXPORT_ROOT, for example /rfs.
+
+researcher_demo:
+  folder: researcher_demo
+
+# Example when technical cluster provides a project folder structure:
+# researcher_jansen:
+#   folder: projects/project-x/jansen
+#
+# researcher_devries:
+#   folder: departments/radiology/project-y/devries

@@ -1,4 +1,6 @@
 # Prototype RFS folder mapping.
+# Keys are Query Tool usernames.
 # Values must be relative folder names under RFS_EXPORT_ROOT.
+# Do not use absolute paths or ".." segments.
 researcher_demo:
   folder: researcher_demo

@@ -1,0 +1,16 @@
+# Example override for connecting the query backend to a Samba/RFS mount.
+#
+# Usage after the Docker host has mounted Samba at /mnt/rfs:
+#   docker compose -f docker-compose.yml -f docker-compose.rfs-example.yml up --build
+#
+# This file contains no Samba credentials. The Samba share must be mounted
+# on the Docker host by the technical cluster or server administrator.
+
+services:
+  dicom-query:
+    environment:
+      RFS_EXPORT_ROOT: "/rfs"
+      RFS_FOLDER_MAP_FILE: "/app/app/config/rfs_folders.yml"
+      RFS_REQUIRE_EXPLICIT_MAPPING: "true"
+    volumes:
+      - /mnt/rfs:/rfs

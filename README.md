@@ -541,6 +541,12 @@ researcher_demo:
   folder: researcher_demo
 ```
 
+Er staat ook een uitgebreid voorbeeldbestand voor latere echte gebruikers/projectmappen:
+
+```text
+query tool/query/app/config/rfs_folders.example.yml
+```
+
 De backend leest deze mapping via:
 
 ```text
@@ -550,6 +556,14 @@ RFS_REQUIRE_EXPLICIT_MAPPING=true
 ```
 
 Dit is bewust een veilige prototype-inrichting: er wordt niet automatisch naar een echte externe RFS gepusht. De datamanager-approval is de HITL-stap; pas daarna wordt de RFS-ready map binnen de approved export volume voorbereid. Voor RFS/Samba staat expliciete user-folder mapping standaard aan, zodat de backend niet per ongeluk naar een ongecontroleerde fallbackmap schrijft.
+
+Wanneer technisch cluster een echte Samba share beschikbaar maakt, moet die share eerst op de Docker-host worden gemount, bijvoorbeeld op `/mnt/rfs`. Daarna kan de backend die mount gebruiken via een Docker volume. Er staat een voorbeeld override in:
+
+```text
+query tool/docker-compose.rfs-example.yml
+```
+
+De querytool beheert dus geen Samba credentials en mount de share niet zelf. De applicatie verwacht alleen dat `/rfs` in de container naar de juiste servermap wijst.
 
 Inspecteren:
 
