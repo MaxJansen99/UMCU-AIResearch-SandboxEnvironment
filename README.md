@@ -524,9 +524,20 @@ Storage layout in container:
   rfs/
     <researcher_username>/
       request_<request_id>/
-        manifest.json
-        <orthanc_instance_id>.dcm
+        study_<orthanc_study_id>/
+          A_ShortDescription/
+          B_Documentation/
+          C_PersonalData/
+          D_DataPreparation/
+          E_ResearchData/
+            manifest.json
+            <orthanc_instance_id>.dcm
+          F_DataAnalysis/
+          G_Output/
+          H_Hidden/
 ```
+
+Bij opnieuw uitvoeren van dezelfde request wordt de RFS-ready `request_<request_id>` map opnieuw opgebouwd. Voor nu worden alleen `E_ResearchData` mappen gevuld; de overige RFS-studiemappen worden leeg aangemaakt.
 
 De prototype RFS-mapping staat in:
 

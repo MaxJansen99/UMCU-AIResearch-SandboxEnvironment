@@ -2,7 +2,7 @@ import hashlib
 import json
 import os
 import re
-from shutil import copy2
+from shutil import copy2, rmtree
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +14,17 @@ from app.services.rfs_folder_config import RfsFolderConfig
 
 
 SAFE_PATH_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+RFS_STUDY_FOLDERS = [
+    "A_ShortDescription",
+    "B_Documentation",
+    "C_PersonalData",
+    "D_DataPreparation",
+    "E_ResearchData",
+    "F_DataAnalysis",
+    "G_Output",
+    "H_Hidden",
+]
+RFS_RESEARCH_DATA_FOLDER = "E_ResearchData"
 
 
 class ExportService:
@@ -203,12 +214,27 @@ class ExportService:
         username = creator["username"] if creator else f"user_{request['created_by_user_id']}"
         user_folder = self.rfs_folders.folder_for_username(username)
         target_dir = self.rfs_export_root / user_folder / f"request_{request['id']}"
-        target_dir.mkdir(parents=True, exist_ok=True)
+        rebuild_directory(target_dir)
+
+        study_dirs: dict[str, Path] = {}
+        for item in request.get("items", []):
+            study_id = item["orthanc_study_id"]
+            study_dir = target_dir / f"study_{safe_path_component(study_id)}"
+            for folder_name in RFS_STUDY_FOLDERS:
+                (study_dir / folder_name).mkdir(parents=True, exist_ok=True)
+            study_dirs[study_id] = study_dir
 
         delivered_files: list[str] = []
         for item in exported_instances:
             source_file = Path(item["linked_file"])
-            target_file = target_dir / source_file.name
+            study_id = item["orthanc_study_id"]
+            study_dir = study_dirs.get(study_id)
+            if study_dir is None:
+                study_dir = target_dir / f"study_{safe_path_component(study_id)}"
+                for folder_name in RFS_STUDY_FOLDERS:
+                    (study_dir / folder_name).mkdir(parents=True, exist_ok=True)
+                study_dirs[study_id] = study_dir
+            target_file = study_dir / RFS_RESEARCH_DATA_FOLDER / source_file.name
             make_hardlink(source_file, target_file)
             delivered_files.append(str(target_file))
 
@@ -217,15 +243,24 @@ class ExportService:
             "username": username,
             "source_export_path": str(export_dir),
             "target_path": str(target_dir),
+            "study_count": len(study_dirs),
             "file_count": len(delivered_files),
             "files": delivered_files,
+            "studies": [
+                {
+                    "orthanc_study_id": study_id,
+                    "target_path": str(study_dir),
+                    "research_data_path": str(study_dir / RFS_RESEARCH_DATA_FOLDER),
+                }
+                for study_id, study_dir in study_dirs.items()
+            ],
         }
 
     def _copy_manifest_to_rfs(self, manifest_path: Path, rfs_delivery: dict[str, Any]) -> None:
-        target_path = rfs_delivery.get("target_path")
-        if not target_path:
-            return
-        copy2(manifest_path, Path(str(target_path)) / manifest_path.name)
+        for study in rfs_delivery.get("studies", []):
+            research_data_path = study.get("research_data_path")
+            if research_data_path:
+                copy2(manifest_path, Path(str(research_data_path)) / manifest_path.name)
 
     def _find_reusable_export(self, request_hash: str, request_id: int) -> dict[str, Any] | None:
         with self.database.connect() as conn:
@@ -287,3 +322,11 @@ def make_hardlink(source: Path, target: Path) -> bool:
     except OSError:
         copy2(source, target)
         return False
+
+
+def rebuild_directory(path: Path) -> None:
+    if path.is_dir():
+        rmtree(path)
+    elif path.exists():
+        path.unlink()
+    path.mkdir(parents=True, exist_ok=True)
