@@ -2,6 +2,7 @@ import type { DicomInstance, DicomStats, DynamicFilters } from './dicomLoader';
 
 export const CORE_METADATA_TAGS = [
   'Modality',
+  'PatientAge',
   'PatientBirthDate',
   'BodyPartExamined',
   'PatientSex',
@@ -210,6 +211,7 @@ function toDicomInstance(series: Record<string, unknown>): DicomInstance {
     OrthancStudyID: stringValue(series.orthanc_study_id),
     Modality: stringValue(series.modality),
     PatientID: stringValue(series.patient_id),
+    PatientAge: stringValue(series.patient_age),
     PatientBirthDate: stringValue(series.patient_birth_date),
     BodyPartExamined: stringValue(series.body_part_examined),
     PatientSex: stringValue(series.patient_sex),
@@ -229,15 +231,32 @@ function ensureCoreStats(
   const orderedStats: Record<string, Record<string, number>> = {};
 
   for (const tag of CORE_METADATA_TAGS) {
-    orderedStats[tag] = stats[tag] || countValues(instances, tag);
+    const sourceStats = stats[tag];
+    if (sourceStats && Object.keys(sourceStats).length > 0) {
+      orderedStats[tag] = sourceStats;
+      continue;
+    }
+
+    if (tag === 'PatientAge') {
+      const countedPatientAge = countValues(instances, tag, false);
+      if (Object.keys(countedPatientAge).length > 0) {
+        orderedStats[tag] = countedPatientAge;
+      }
+      continue;
+    }
+
+    orderedStats[tag] = countValues(instances, tag);
   }
 
   return orderedStats;
 }
 
-function countValues(instances: DicomInstance[], key: string): Record<string, number> {
+function countValues(instances: DicomInstance[], key: string, includeMissing = true): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const instance of instances) {
+    if (!includeMissing && !instance[key]) {
+      continue;
+    }
     const value = String(instance[key] || 'onbekend');
     counts[value] = (counts[value] || 0) + 1;
   }

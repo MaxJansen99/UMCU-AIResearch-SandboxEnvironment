@@ -2,6 +2,8 @@
 nginx/ssl/
 nginx/auth/
 .idea/
+.venv/
+.tmp*/
 query tool/idc-data/
 query tool/csv-data/
 query tool/query/frontend/node_modules/

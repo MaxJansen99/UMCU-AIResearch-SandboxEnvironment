@@ -187,11 +187,11 @@ function ResearcherDashboard({ user, onLogout }: ResearcherDashboardProps) {
       
       // Determine filter type
       if (
-        header === 'PatientBirthDate' &&
+        (header === 'PatientAge' || header === 'PatientBirthDate') &&
         Array.isArray(value) &&
         value.every(item => typeof item === 'object' && item !== null)
       ) {
-        filters[header] = isNumericAgeField(header, currentStats)
+        filters[header] = header === 'PatientAge' || isNumericAgeField(header, currentStats)
           ? {
               type: 'numeric',
               value

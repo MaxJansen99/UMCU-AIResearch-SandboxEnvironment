@@ -68,7 +68,7 @@ const FILTER_SECTIONS = [
   {
     id: 'patient',
     title: 'Patient',
-    headers: ['PatientBirthDate', 'PatientSex'],
+    headers: ['PatientAge', 'PatientBirthDate', 'PatientSex'],
     defaultOpen: false,
   },
 ] as const;
@@ -182,27 +182,27 @@ export function DynamicFilters({
     }));
   };
 
-  const addAgeRange = () => {
+  const addAgeRange = (header: string) => {
     const min = Number(ageRangeDraft.min);
     const max = Number(ageRangeDraft.max);
     if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0 || min > max) {
       return;
     }
 
-    const currentValue = getFilterValue('PatientBirthDate');
+    const currentValue = getFilterValue(header);
     const currentRanges: AgeRange[] = Array.isArray(currentValue) ? currentValue : [];
     const alreadyExists = currentRanges.some(range => range.min === min && range.max === max);
     if (!alreadyExists) {
-      updateFilter('PatientBirthDate', [...currentRanges, { min, max }]);
+      updateFilter(header, [...currentRanges, { min, max }]);
     }
     setAgeRangeDraft({ min: '', max: '' });
   };
 
-  const removeAgeRange = (indexToRemove: number) => {
-    const currentValue = getFilterValue('PatientBirthDate');
+  const removeAgeRange = (header: string, indexToRemove: number) => {
+    const currentValue = getFilterValue(header);
     const currentRanges: AgeRange[] = Array.isArray(currentValue) ? currentValue : [];
     updateFilter(
-      'PatientBirthDate',
+      header,
       currentRanges.filter((_, index) => index !== indexToRemove)
     );
   };
@@ -415,7 +415,7 @@ export function DynamicFilters({
       );
     }
 
-    if (header === 'PatientBirthDate') {
+    if (isAgeHeader(header)) {
       const currentValue = getFilterValue(header);
       const selectedRanges: AgeRange[] = Array.isArray(currentValue) ? currentValue : [];
       const min = Number(ageRangeDraft.min);
@@ -454,7 +454,7 @@ export function DynamicFilters({
             </label>
             <button
               type="button"
-              onClick={addAgeRange}
+              onClick={() => addAgeRange(header)}
               disabled={!canAddAgeRange}
               className="self-end rounded-md bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
             >
@@ -472,7 +472,7 @@ export function DynamicFilters({
                   {range.min}-{range.max}
                   <button
                     type="button"
-                    onClick={() => removeAgeRange(index)}
+                    onClick={() => removeAgeRange(header, index)}
                     className="text-blue-500 hover:text-blue-800"
                     aria-label={`Remove age range ${range.min}-${range.max}`}
                   >
@@ -542,7 +542,7 @@ export function DynamicFilters({
 
       <div className="divide-y divide-gray-200 rounded-md border border-gray-200">
         {FILTER_SECTIONS.map(section => {
-          const sectionHeaders = section.headers.filter(header => availableHeaders.has(header));
+          const sectionHeaders = getSectionHeaders(section, availableHeaders);
           if (sectionHeaders.length === 0) return null;
           const isOpen = openSections[section.id];
           const activeCount = sectionActiveCount(section.headers);
@@ -656,6 +656,26 @@ export function DynamicFilters({
 
 function toDicomDate(value: string): string | undefined {
   return value ? value.replace(/-/g, '') : undefined;
+}
+
+function isAgeHeader(header: string): boolean {
+  return header === 'PatientAge' || header === 'PatientBirthDate';
+}
+
+function getSectionHeaders(
+  section: (typeof FILTER_SECTIONS)[number],
+  availableHeaders: Set<string>
+): string[] {
+  if (section.id !== 'patient') {
+    return section.headers.filter(header => availableHeaders.has(header));
+  }
+
+  const ageHeader = availableHeaders.has('PatientAge')
+    ? 'PatientAge'
+    : availableHeaders.has('PatientBirthDate')
+      ? 'PatientBirthDate'
+      : undefined;
+  return [ageHeader, availableHeaders.has('PatientSex') ? 'PatientSex' : undefined].filter(Boolean) as string[];
 }
 
 function formatDateRange(range: DateRange): string {

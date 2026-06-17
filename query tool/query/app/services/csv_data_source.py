@@ -9,6 +9,7 @@ class CsvDataSourceError(ValueError):
 
 TAG_ALIASES: dict[str, tuple[str, ...]] = {
     "Modality": ("Modality", "modality"),
+    "PatientAge": ("PatientAge", "patient_age", "age"),
     "PatientBirthDate": ("PatientBirthDate", "patient_birth_date", "birth_date", "date_of_birth"),
     "PatientID": ("PatientID", "patient_id", "patient"),
     "PatientSex": ("PatientSex", "patient_sex", "sex", "gender"),
@@ -27,7 +28,7 @@ ID_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 DATE_TAGS = {"PatientBirthDate", "StudyDate"}
-CORE_QUERY_TAGS = {"Modality", "PatientBirthDate", "PatientSex", "StudyDate", "BodyPartExamined"}
+CORE_QUERY_TAGS = {"Modality", "PatientAge", "PatientBirthDate", "PatientSex", "StudyDate", "BodyPartExamined"}
 
 
 class CsvDataSource:
@@ -146,6 +147,7 @@ class CsvDataSource:
                     },
                     "PatientMainDicomTags": {
                         "PatientID": tags["PatientID"],
+                        "PatientAge": tags["PatientAge"],
                         "PatientBirthDate": tags["PatientBirthDate"],
                         "PatientSex": tags["PatientSex"],
                     },
@@ -196,7 +198,7 @@ class CsvDataSource:
         if not any(tag in recognized_tags for tag in CORE_QUERY_TAGS):
             raise CsvDataSourceError(
                 "CSV fallback file must contain at least one query metadata column, such as "
-                "Modality, StudyDate, BodyPartExamined, PatientBirthDate or PatientSex."
+                "Modality, StudyDate, BodyPartExamined, PatientAge, PatientBirthDate or PatientSex."
             )
 
     def _unique_series_id(self, series_id: str, row_number: int) -> str:

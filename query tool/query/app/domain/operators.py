@@ -142,6 +142,7 @@ HIDDEN_TAGS = {
 
 ALLOWED_TAGS = [
     "Modality",
+    "PatientAge",
     "PatientBirthDate",
     "BodyPartExamined",
     "PatientSex",

@@ -174,6 +174,7 @@ class QueryService:
             "series_instance_uid": safe_get_full(meta, "SeriesInstanceUID") or "",
             "modality": safe_get_full(meta, "Modality") or "",
             "patient_id": safe_get_full(meta, "PatientID") or "",
+            "patient_age": safe_get_full(meta, "PatientAge") or "",
             "patient_birth_date": safe_get_full(meta, "PatientBirthDate") or "",
             "patient_sex": safe_get_full(meta, "PatientSex") or "",
             "study_date": safe_get_full(meta, "StudyDate") or "",
