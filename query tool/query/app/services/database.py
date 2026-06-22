@@ -117,7 +117,11 @@ class Database:
     def _seed_users(self, cur: psycopg.Cursor) -> None:
         demo_users = (
             ("researcher_demo", "researcher_demo", "researcher"),
+            ("researcher_test1", "researcher_test1", "researcher"),
+            ("researcher_test2", "researcher_test2", "researcher"),
             ("datamanager_demo", "datamanager_demo", "datamanager"),
+            ("datamanager_test1", "datamanager_test1", "datamanager"),
+            ("datamanager_test2", "datamanager_test2", "datamanager"),
         )
         for username, password, role in demo_users:
             password_hash = password_context.hash(password)

@@ -5,6 +5,12 @@
 researcher_demo:
   folder: researcher_demo
 
+researcher_test1:
+  folder: researcher_test1
+
+researcher_test2:
+  folder: researcher_test2
+
 # Example when technical cluster provides a project folder structure:
 # researcher_jansen:
 #   folder: projects/project-x/jansen

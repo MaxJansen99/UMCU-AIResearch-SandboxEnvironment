@@ -4,3 +4,9 @@
 # Do not use absolute paths or ".." segments.
 researcher_demo:
   folder: researcher_demo
+
+researcher_test1:
+  folder: researcher_test1
+
+researcher_test2:
+  folder: researcher_test2

@@ -19,16 +19,32 @@ De frontend blijft hetzelfde werken, ongeacht of de querydata uit Orthanc of CSV
 ## Demo Accounts
 
 ```text
-Researcher
+Researcher demo
 username: researcher_demo
 password: researcher_demo
 
-Datamanager
+Researcher test 1
+username: researcher_test1
+password: researcher_test1
+
+Researcher test 2
+username: researcher_test2
+password: researcher_test2
+
+Datamanager demo
 username: datamanager_demo
 password: datamanager_demo
+
+Datamanager test 1
+username: datamanager_test1
+password: datamanager_test1
+
+Datamanager test 2
+username: datamanager_test2
+password: datamanager_test2
 ```
 
-Wachtwoorden worden als bcrypt hash opgeslagen in Postgres.
+Deze accounts worden automatisch geseed bij startup van de backend. Wachtwoorden worden als bcrypt hash opgeslagen in Postgres. De seed is idempotent: bestaande usernames worden bijgewerkt met de rol en het wachtwoord uit de seed.
 
 ## Snel Starten
 
@@ -314,6 +330,11 @@ app/services/export_service.py
 - DICOM file export vanuit Orthanc
 - hash-based reuse voor identieke exports
 - RFS-ready delivery naar een gebruiker-specifieke map na datamanager approval
+
+app/services/rfs_folder_config.py
+- leest expliciete username -> RFS folder mappings
+- blokkeert absolute paden en ".." segmenten
+- kan optioneel terugvallen op een veilige foldernaam wanneer explicit mapping uit staat
 ```
 
 ## Backend API
@@ -486,6 +507,59 @@ FROM request_exports
 ORDER BY id;
 ```
 
+### Users Toevoegen
+
+Er is nog geen user management UI. Test- en demo-users worden daarom nu via de backend seed beheerd in:
+
+```text
+query tool/query/app/services/database.py
+```
+
+Voeg een account toe aan `demo_users`:
+
+```python
+demo_users = (
+    ("researcher_demo", "researcher_demo", "researcher"),
+    ("researcher_test1", "researcher_test1", "researcher"),
+    ("datamanager_demo", "datamanager_demo", "datamanager"),
+)
+```
+
+Formaat:
+
+```text
+("username", "plain_text_password_for_seed", "role")
+```
+
+Toegestane rollen:
+
+```text
+researcher
+datamanager
+```
+
+Daarna de backend opnieuw starten of rebuilden:
+
+```powershell
+cd "C:\dev\UMC\query tool"
+docker compose up --build -d dicom-query
+```
+
+Controleren:
+
+```powershell
+docker compose exec postgres psql -U dicom_query -d dicom_query -c "SELECT id, username, role FROM users ORDER BY id;"
+```
+
+Belangrijk voor researcher accounts: als `RFS_REQUIRE_EXPLICIT_MAPPING=true` staat, moet iedere researcher die approved exports kan ontvangen ook in `rfs_folders.yml` staan. Zonder mapping faalt de export na approval met een duidelijke foutmelding.
+
+```yaml
+researcher_test1:
+  folder: researcher_test1
+```
+
+Datamanagers hebben geen RFS mapping nodig, omdat de delivery-map wordt bepaald op basis van de researcher die de aanvraag heeft aangemaakt.
+
 ## Status Flow
 
 ```text
@@ -495,7 +569,7 @@ DRAFT -> SUBMITTED -> REJECTED
 
 Researchers maken DRAFT requests, voegen selected studies toe en submitten daarna. Datamanagers zien alleen SUBMITTED requests in de pending inbox.
 
-## Approved Exports
+## Approved Exports En RFS/Samba
 
 Na approval probeert de backend approved DICOM files klaar te zetten vanuit Orthanc.
 
@@ -510,6 +584,8 @@ Proces:
 6. bereid een RFS-ready kopie/link voor onder de gebruiker-specifieke map
 7. sla exportstatus en export items op in Postgres
 ```
+
+De RFS-delivery wordt alleen gestart na een datamanager approval. Een researcher kan dus wel een aanvraag voorbereiden en indienen, maar krijgt pas files in de RFS-ready map wanneer een datamanager de aanvraag goedkeurt.
 
 Storage layout in container:
 
@@ -550,6 +626,9 @@ Voorbeeld:
 ```yaml
 researcher_demo:
   folder: researcher_demo
+
+researcher_test1:
+  folder: researcher_test1
 ```
 
 Er staat ook een uitgebreid voorbeeldbestand voor latere echte gebruikers/projectmappen:
@@ -576,6 +655,18 @@ query tool/docker-compose.rfs-example.yml
 
 De querytool beheert dus geen Samba credentials en mount de share niet zelf. De applicatie verwacht alleen dat `/rfs` in de container naar de juiste servermap wijst.
 
+Productie-achtige flow met Samba:
+
+```text
+1. Technisch beheer mount de Samba/RFS share op de Docker-host.
+2. Docker mount dat hostpad read/write in de dicom-query container.
+3. RFS_EXPORT_ROOT wijst in de container naar die mount.
+4. rfs_folders.yml koppelt Query Tool usernames aan relatieve project/user folders.
+5. Na approval schrijft de backend request_<id> onder die relatieve folder.
+```
+
+De applicatie valideert alleen het relatieve folderpad uit de mapping. Rechten, quota, Samba credentials, netwerkbereikbaarheid en auditing van de share horen bij de infrastructuurlaag.
+
 Inspecteren:
 
 ```powershell
@@ -585,6 +676,16 @@ docker compose exec dicom-query cat /approved_exports/requests/<request_id>/mani
 ```
 
 Let op: dit exportdeel is afhankelijk van Orthanc en is nog niet bron-onafhankelijk voor CSV.
+
+Nog open om RFS/Samba compleet te maken:
+
+- User management UI of admin endpoint voor accounts, rollen en wachtwoordrotatie.
+- Definitieve autorisatieregels: welke datamanager mag welke researcher/projectmap goedkeuren.
+- Project- of studieprotocolkoppeling in plaats van alleen username -> folder.
+- Productieconfiguratie voor echte Samba mount, rechten, ownership en audit logging.
+- Retentiebeleid en opschoning voor oude `request_<id>` deliveries.
+- Foutafhandeling richting frontend wanneer RFS delivery faalt na approval.
+- End-to-end tests voor approval -> export -> RFS delivery op een gemounte share.
 
 ## Demo Flow
 
@@ -648,16 +749,17 @@ BodyPart: dynamische waarden, alfabetisch en doorzoekbaar.
 5433 Postgres op host
 ```
 
-## Huidige Beperkingen
+## Huidige Beperkingen En Open Werk
 
 - Sessions zijn server-side in-memory. Restart van `dicom-query` maakt login tokens ongeldig.
 - Er is nog geen user management UI.
-- Alleen demo users worden automatisch aangemaakt.
+- Demo- en test-users worden automatisch geseed, maar er is nog geen beheerflow voor echte gebruikers.
 - Datamanagers zien alle pending requests; er is geen assignment model.
 - Datamanager history is nog geen volledige archive UI.
 - CSV ondersteunt query/filter/resultaten, maar geen DICOM instance download/export.
 - Approved export is afhankelijk van Orthanc en moet voor echte UMC-infra nog afgestemd worden.
-- RFS-delivery is een lokaal prototypepad binnen `/approved_exports/rfs`; echte RFS-mounts en CI/CD approvals moeten nog apart worden ontworpen.
+- RFS-delivery is een lokaal prototypepad binnen `/approved_exports/rfs`, tenzij een echte RFS/Samba mount via Docker wordt gekoppeld.
+- RFS/Samba credentials, mount lifecycle, rechten, ownership, quota en audit logging zitten nog buiten de applicatie.
 - Frontend build geeft een bekende Vite chunk-size warning door de brede UI dependency set.
 - Er kunnen lokale smoke-test aanvragen in Postgres volumes blijven staan.
 
