@@ -1,0 +1,6 @@
+include:
+  - project: "${CI_PROJECT_NAMESPACE}/templates"
+    file: /gitlab/shared/.gitlab-ci.yml
+
+variables:
+  DOCKERFILE_PATH: Dockerfile

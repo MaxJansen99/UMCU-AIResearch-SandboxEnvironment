@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${CI_PROJECT_NAME}-pvc
+  labels:
+    app: ${CI_PROJECT_NAME}
+    component: output
+spec:
+  volumeName: ${CI_PROJECT_NAME}-pv
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 100Gi

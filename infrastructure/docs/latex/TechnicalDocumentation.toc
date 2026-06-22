@@ -1,0 +1,65 @@
+\babel@toc {english}{}\relax 
+\contentsline {section}{\numberline {1}Introduction}{3}{}%
+\contentsline {section}{\numberline {2}Components}{4}{}%
+\contentsline {subsection}{\numberline {2.1}Recommended Setup}{4}{}%
+\contentsline {subsection}{\numberline {2.2}GitLab}{4}{}%
+\contentsline {paragraph}{Recommended specifications}{4}{}%
+\contentsline {subsection}{\numberline {2.3}RKE2}{4}{}%
+\contentsline {paragraph}{Recommended specifications}{4}{}%
+\contentsline {subsection}{\numberline {2.4}SMB}{5}{}%
+\contentsline {paragraph}{Recommended specifications}{5}{}%
+\contentsline {section}{\numberline {3}Installation}{6}{}%
+\contentsline {subsection}{\numberline {3.1}GitLab}{6}{}%
+\contentsline {subsubsection}{\numberline {3.1.1}Base Configuration, SSH \& Firewall}{6}{}%
+\contentsline {subsubsection}{\numberline {3.1.2}Docker}{6}{}%
+\contentsline {subsubsection}{\numberline {3.1.3}GitLab CE}{7}{}%
+\contentsline {paragraph}{Variables}{7}{}%
+\contentsline {subsubsection}{\numberline {3.1.4}GitLab SMTP}{8}{}%
+\contentsline {subsubsection}{\numberline {3.1.5}GitLab Runner}{9}{}%
+\contentsline {paragraph}{Variables}{9}{}%
+\contentsline {subsubsection}{\numberline {3.1.6}GitLab Container Registry}{9}{}%
+\contentsline {subsubsection}{\numberline {3.1.7}GitLab Pages}{10}{}%
+\contentsline {subsection}{\numberline {3.2}RKE2}{10}{}%
+\contentsline {subsubsection}{\numberline {3.2.1}Base Configuration, SSH \& Firewall}{10}{}%
+\contentsline {subsubsection}{\numberline {3.2.2}NVIDIA Drivers}{11}{}%
+\contentsline {subsubsection}{\numberline {3.2.3}NVIDIA Container Toolkit}{12}{}%
+\contentsline {subsubsection}{\numberline {3.2.4}Helm}{13}{}%
+\contentsline {subsubsection}{\numberline {3.2.5}RKE2}{13}{}%
+\contentsline {paragraph}{Variables}{13}{}%
+\contentsline {subsubsection}{\numberline {3.2.6}GPU Operator}{15}{}%
+\contentsline {subsubsection}{\numberline {3.2.7}SMB CSI Driver}{15}{}%
+\contentsline {subsection}{\numberline {3.3}SMB}{16}{}%
+\contentsline {subsubsection}{\numberline {3.3.1}Base Configuration, SSH \& Firewall}{16}{}%
+\contentsline {subsubsection}{\numberline {3.3.2}SMB}{16}{}%
+\contentsline {paragraph}{Variables}{16}{}%
+\contentsline {subsection}{\numberline {3.4}Connections}{17}{}%
+\contentsline {subsubsection}{\numberline {3.4.1}GitLab to RKE2}{17}{}%
+\contentsline {paragraph}{Variables}{17}{}%
+\contentsline {subsubsection}{\numberline {3.4.2}RKE2 to GitLab}{18}{}%
+\contentsline {paragraph}{Variables}{18}{}%
+\contentsline {subsubsection}{\numberline {3.4.3}GitLab and RKE2 to SMB}{18}{}%
+\contentsline {paragraph}{Variables}{18}{}%
+\contentsline {subsection}{\numberline {3.5}Templates}{19}{}%
+\contentsline {subsubsection}{\numberline {3.5.1}Group Settings}{19}{}%
+\contentsline {paragraph}{Variables}{19}{}%
+\contentsline {subsubsection}{\numberline {3.5.2}Project Permissions}{21}{}%
+\contentsline {section}{\numberline {4}Manual}{24}{}%
+\contentsline {subsection}{\numberline {4.1}Before You Start}{24}{}%
+\contentsline {subsection}{\numberline {4.2}Templates Repository}{24}{}%
+\contentsline {subsection}{\numberline {4.3}Step 1: Create the GitLab Project}{24}{}%
+\contentsline {subsection}{\numberline {4.4}Step 2: Add the Entry Point}{24}{}%
+\contentsline {subsection}{\numberline {4.5}Step 3: Choose a Template}{26}{}%
+\contentsline {subsubsection}{\numberline {4.5.1}\texttt {tensorflow-gpu-environment}}{26}{}%
+\contentsline {subsubsection}{\numberline {4.5.2}\texttt {python-gpu-environment}}{26}{}%
+\contentsline {subsubsection}{\numberline {4.5.3}\texttt {docker-gpu-environment}}{27}{}%
+\contentsline {subsection}{\numberline {4.6}Step 4: Add the CI Configuration}{27}{}%
+\contentsline {subsection}{\numberline {4.7}Step 5: Check the Repository Layout}{28}{}%
+\contentsline {subsection}{\numberline {4.8}Step 6: Configure Project Variables}{28}{}%
+\contentsline {subsection}{\numberline {4.9}Step 7: Verify the Storage Paths}{30}{}%
+\contentsline {subsection}{\numberline {4.10}Step 8: Commit and Push}{30}{}%
+\contentsline {subsection}{\numberline {4.11}Step 9: Monitor the Pipeline}{30}{}%
+\contentsline {subsection}{\numberline {4.12}Step 10: Check the Results}{30}{}%
+\contentsline {subsection}{\numberline {4.13}Final Checklist}{33}{}%
+\contentsline {section}{\numberline {5}References}{34}{}%
+\contentsline {subsection}{\numberline {5.1}Documentation}{34}{}%
+\contentsline {subsection}{\numberline {5.2}Repositories and Downloads}{34}{}%

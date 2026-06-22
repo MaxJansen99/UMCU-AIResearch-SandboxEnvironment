@@ -1,0 +1,1220 @@
+\documentclass{article}
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\usepackage[a4paper, total={6in, 8in}]{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{xurl}
+
+\graphicspath{ {./images/} }
+
+\setlength{\parindent}{0pt}
+
+\newcommand{\documentationimage}[2]{
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{#1}
+\caption{#2}
+\label{fig:#1}
+\end{figure}
+}
+
+\definecolor{codegreen}{rgb}{0.35, 0.46, 0.22}
+\definecolor{codegray}{rgb}{0.52, 0.55, 0.71}
+\definecolor{codepurple}{rgb}{0.47, 0.28, 0.74}
+\definecolor{backcolour}{rgb}{0.88, 0.89, 0.91}
+\definecolor{codeforeground}{rgb}{0.22, 0.38, 0.75}
+
+\lstdefinestyle{tokyonight}{
+    aboveskip=0.4cm,
+    belowskip=0.4cm,
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegray}\itshape,
+    keywordstyle=\color{codepurple}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codegreen},
+    basicstyle=\ttfamily\small\color{codeforeground},
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=tokyonight}
+
+\title{Technical Documentation Infrastructure}
+\author{Max Jansen}
+\date{June 15, 2026}
+
+\begin{document}
+
+\pagenumbering{gobble}
+
+\begin{titlepage}
+	\centering
+	\vspace{2cm}
+	{\huge Technical Infrastructure Documentation \par}
+	\vspace{2cm}
+	{\large Max Jansen \par}
+	\vspace{0.2cm}
+	{\large Tom Renardel De Lavalette \par}
+	\vspace{0.2cm}
+	{\large Pierre Mulder \par}
+	\vspace{0.2cm}
+	{\large Berkay Karayakuplu \par}
+	\vspace{0.2cm}
+	{\large Sohaib Kamri \par}
+	\vspace{2cm}
+	\begin{tabular}{c@{\hspace{1cm}}c}
+		\includegraphics[width=0.15\textwidth]{umcu} &
+		\includegraphics[width=0.15\textwidth]{hu}     \\
+	\end{tabular}
+	\vfill
+	\today
+\end{titlepage}
+
+\pagenumbering{arabic}
+
+\newpage
+\tableofcontents
+
+\newpage
+\section{Introduction}
+
+Within UMC Utrecht, research is being conducted into the use of artificial intelligence to support radiological work. This is relevant because the workload in radiology is high, and the assessment of medical images takes a lot of time. AI models can help make parts of this process more efficient, so radiologists can focus more on complex assessments and less on repetitive or time-consuming work.
+
+\vspace{0.5cm}
+
+At the moment, AI models are often developed and trained by individual researchers with specific technical knowledge. A central environment where researchers can easily develop, train, and repeat experiments is missing. As a result, much of the process is still manual. Researchers who want to work on AI models can lose valuable time setting up environments, managing dependencies, and preparing infrastructure instead of focusing on the research itself.
+
+\vspace{0.5cm}
+
+To address this problem, this proof-of-concept environment provides a standardized and automated way to train AI models. A researcher places code in a GitLab repository, selects a shared deployment template, and pushes the project. GitLab then builds the container image, RKE2 runs the workload on Kubernetes, and the workload uses shared SMB storage for input data, output files, logs, and executed notebooks.
+
+\vspace{0.5cm}
+
+The environment consists of three main systems. GitLab is the central development platform. It stores user projects and reusable templates, starts CI/CD pipelines, provides the container registry, and uses GitLab Runner to perform the build and deployment steps. RKE2 provides the Kubernetes cluster where the training workloads run. The SMB server provides shared storage so datasets, models, results, and logs can be stored centrally instead of on local machines.
+
+\vspace{0.5cm}
+
+The templates repository is important because it keeps the workflow accessible for researchers. Without it, every user project would need its own pipeline, Docker build logic, and Kubernetes manifests. In this setup, the reusable parts are stored centrally. A user project only includes the template it needs. This makes the environment easier to use, keeps project repositories small, and makes it possible to support different AI frameworks and workflows without rebuilding the infrastructure for every project.
+
+\vspace{0.5cm}
+
+This document explains how the technical infrastructure for this proof of concept is installed and used. It covers the recommended components, the installation of GitLab, RKE2, and SMB, the configuration that connects those systems, the templates repository, and the user workflow for running workloads. The document does not define a production architecture, high-availability design, backup strategy, monitoring platform, or full security policy. Those topics must be designed separately before the environment is used for production workloads or sensitive operational data.
+
+\newpage
+\section{Components}
+
+\subsection{Recommended Setup}
+
+The infrastructure can run on a virtualized or cloud-based platform, as long as it provides the required compute, storage, and GPU resources to the virtual machines. Cloud infrastructure was used while developing this proof of concept.
+
+\vspace{0.5cm}
+
+The specifications below are meant for testing and validation. They are not production sizing advice. A production environment should be sized separately, based on the number of users, the expected workloads, storage growth, backup requirements, availability requirements, and security policy.
+
+\subsection{GitLab}
+
+The GitLab virtual machine is the central platform in this environment. It stores the repositories, manages CI/CD configuration, integrates with GitLab Runner, and provides the container registry used by the deployment workflow. Project access, deploy tokens, and pipeline settings are also managed here. In this proof of concept, GitLab is sized for a small test environment.
+
+\paragraph{Recommended specifications}
+\begin{itemize}
+	\item OS: Ubuntu 24.04.4 (Noble Numbat)
+	\item HDD: 256 GB
+	\item CPU: 4vCPU
+	\item RAM: 16 GB
+\end{itemize}
+
+\subsection{RKE2}
+
+The RKE2 virtual machine provides the Kubernetes environment. It runs the application workloads, connects to the GitLab container registry, and provides the cluster services needed to deploy and test containers. This machine also has access to the NVIDIA GPU, so GPU-enabled jobs can be scheduled inside the cluster.
+
+\paragraph{Recommended specifications}
+\begin{itemize}
+	\item OS: Ubuntu 24.04.4 (Noble Numbat)
+	\item HDD: 256 GB
+	\item CPU: 4vCPU
+	\item RAM: 16 GB
+	\item GPU: NVIDIA
+\end{itemize}
+
+\subsection{SMB}
+
+The SMB virtual machine provides shared file storage. It exposes a central network share that can be reached by the other systems and by workloads running in Kubernetes. This makes it possible to test shared data access, persistent output, and storage integration between the infrastructure components.
+
+\paragraph{Recommended specifications}
+\begin{itemize}
+	\item OS: Ubuntu 24.04.4 (Noble Numbat)
+	\item SSD: 128 GB
+	\item CPU: 2vCPU
+	\item RAM: 2 GB
+\end{itemize}
+
+\newpage
+\section{Installation}
+
+This section walks through the installation of GitLab, RKE2, and SMB. The steps are grouped by server and component, so it stays clear where each command must be executed. Follow the subsections in order. GitLab is prepared first, the Kubernetes server follows, and the SMB server is configured after the supporting services are in place.
+
+\vspace{0.5cm}
+
+During the installation, the operating systems are updated, required services are enabled, platform packages are installed, and access between the components is configured. Replace all values between angle brackets with values from the target environment before running the commands. At the end of this section, the servers should be ready for GitLab hosting, Kubernetes workloads, and shared storage access.
+
+\subsection{GitLab}
+
+\vspace{0.4cm}
+\subsubsection{Base Configuration, SSH \& Firewall}
+
+Start on the GitLab server by updating the package index and installing the available upgrades. This gives the rest of the installation a current system base.
+
+\begin{lstlisting}[language=sh]
+sudo apt update && sudo apt upgrade -y
+\end{lstlisting}
+
+Enable and start SSH so administrators can manage the GitLab server remotely.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl enable --now ssh.service
+\end{lstlisting}
+
+Open the ports needed for SSH, HTTP, HTTPS, and the GitLab container registry. After adding the rules, enable the firewall so they become active.
+
+\begin{lstlisting}[language=sh]
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 5050/tcp
+sudo ufw enable
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{Docker}
+\noindent\textit{Reference:} \url{https://docs.docker.com/engine/install/ubuntu/}\par\vspace{0.4cm}
+
+Before Docker is installed from the official Docker repository, remove older or conflicting Docker-related packages from the Ubuntu repositories. This prevents package conflicts during installation.
+
+\begin{lstlisting}[language=sh]
+sudo apt remove $(dpkg --get-selections docker.io docker-compose docker-compose-v2 docker-doc podman-docker containerd runc | cut -f1)
+\end{lstlisting}
+
+Add Docker's official signing key and package repository. After that, refresh the package index so Ubuntu can find the Docker packages from this repository.
+
+\begin{lstlisting}[language=sh]
+# Add Docker's official GPG key:
+sudo apt update
+sudo apt install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt update
+\end{lstlisting}
+
+Install Docker Engine, the Docker CLI, containerd, and the build and compose plugins. Later in the setup, GitLab Runner uses Docker as its executor.
+
+\begin{lstlisting}[language=sh]
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+\end{lstlisting}
+
+Enable and start Docker so it is available immediately and starts again after a reboot.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl enable --now docker.service
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{GitLab CE}
+
+\noindent\textit{Reference:} \url{https://docs.gitlab.com/install/package/ubuntu/}\par\vspace{0.4cm}
+
+\paragraph{Variables}
+\begin{itemize}
+	\item GITLAB\_ROOT\_EMAIL: e-mail address for the initial GitLab root administrator account.
+	\item GITLAB\_ROOT\_PASSWORD: password for the initial GitLab root administrator account.
+	\item DOMAIN\_NAME: fully qualified domain name where GitLab will be reachable, for example \texttt{gitlab.example.nl}.
+\end{itemize}
+
+Install \texttt{curl}. GitLab provides a repository setup script, and \texttt{curl} is needed to download it.
+
+\begin{lstlisting}[language=sh]
+sudo apt install -y curl
+\end{lstlisting}
+
+Add the GitLab CE package repository. This makes the \texttt{gitlab-ce} package available through \texttt{apt}.
+
+\begin{lstlisting}[language=sh]
+curl --location "https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh" | sudo bash
+\end{lstlisting}
+
+Install GitLab CE. Before running the command, set the initial root e-mail address, root password, and public GitLab URL with the variables listed above.
+
+\begin{lstlisting}[language=sh]
+sudo GITLAB_ROOT_EMAIL="<GITLAB_ROOT_EMAIL>" GITLAB_ROOT_PASSWORD="<GITLAB_ROOT_PASSWORD>" EXTERNAL_URL="https://<DOMAIN_NAME>/" apt install gitlab-ce
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{GitLab SMTP}
+\noindent\textit{Reference:} \url{https://docs.gitlab.com/omnibus/settings/smtp/}\par\vspace{0.4cm}
+
+Configure SMTP so GitLab can send account, notification, and pipeline-related e-mails. Replace the example values with the mail server settings for the target environment.
+
+\vspace{0.5cm}
+
+Edit \texttt{/etc/gitlab/gitlab.rb}:
+\begin{lstlisting}[language=sh]
+...
+
+gitlab_rails['smtp_enable'] = true
+gitlab_rails['smtp_address'] = "smtp.server"
+gitlab_rails['smtp_port'] = 465
+gitlab_rails['smtp_user_name'] = "smtp user"
+gitlab_rails['smtp_password'] = "smtp password"
+gitlab_rails['smtp_domain'] = "example.com"
+gitlab_rails['smtp_authentication'] = "login"
+gitlab_rails['smtp_enable_starttls_auto'] = true
+gitlab_rails['smtp_openssl_verify_mode'] = 'peer'
+
+# If your SMTP server does not like the default 'From: gitlab@localhost' you
+# can change the 'From' with this setting.
+gitlab_rails['gitlab_email_from'] = 'gitlab@example.com'
+gitlab_rails['gitlab_email_reply_to'] = 'noreply@example.com'
+
+# If your SMTP server is using a self signed certificate or a certificate which
+# is signed by a CA which is not trusted by default, you can specify a custom ca file.
+# Please note that the certificates from /etc/gitlab/trusted-certs/ are
+# not used for the verification of the SMTP server certificate.
+gitlab_rails['smtp_ca_file'] = '/path/to/your/cacert.pem'
+\end{lstlisting}
+Example configuration:
+
+\vspace{0.5cm}
+
+After saving the configuration file, reconfigure GitLab. This applies the SMTP settings and restarts the GitLab services that need the new configuration.
+
+\begin{lstlisting}[language=sh]
+sudo gitlab-ctl reconfigure
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{GitLab Runner}
+
+\noindent\textit{Reference:} \url{https://docs.gitlab.com/runner/install/linux-repository/}\par\vspace{0.4cm}
+
+\paragraph{Variables}
+\begin{itemize}
+	\item DOMAIN\_NAME: fully qualified domain name of the GitLab instance that the runner registers with.
+	\item RUNNER\_TOKEN: registration token generated by GitLab when creating the instance runner.
+\end{itemize}
+
+Download the GitLab Runner repository setup script, inspect it, and then run it. This adds the official GitLab Runner package repository to the server.
+
+\begin{lstlisting}[language=sh]
+curl -L "https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh" -o script.deb.sh
+less script.deb.sh
+sudo bash script.deb.sh
+\end{lstlisting}
+
+Install GitLab Runner after the repository has been added.
+
+\begin{lstlisting}[language=sh]
+sudo apt install gitlab-runner
+\end{lstlisting}
+
+Create a new instance runner in the GitLab web interface and copy the runner token. The token is needed when the runner is registered on the server. Follow the path below in the GitLab settings. Figure~\ref{fig:runner-creation} shows the page where the token is generated.
+
+\vspace{0.5cm}
+
+Admin $\rightarrow$ CI/CD $\rightarrow$ Runners $\rightarrow$ Create instance runner
+\vspace{0.4cm}
+
+\documentationimage{runner-creation}{GitLab instance runner creation page.}
+
+Register the runner on the GitLab server with the GitLab domain name and runner token from the variables above. This runner uses Docker as its executor and starts from the \texttt{alpine:latest} image by default.
+
+\begin{lstlisting}[language=sh]
+sudo gitlab-runner register \
+  --non-interactive \
+  --url "https://<DOMAIN_NAME>/" \
+  --token "<RUNNER_TOKEN>" \
+  --executor "docker" \
+  --docker-image alpine:latest \
+  --description "docker-runner"
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{GitLab Container Registry}
+\noindent\textit{Reference:} \url{https://docs.gitlab.com/administration/packages/container_registry/}\par\vspace{0.4cm}
+
+This installation step still has to be documented before the container registry can be considered fully configured.
+
+\vspace{0.4cm}
+\subsubsection{GitLab Pages}
+\noindent\textit{Reference:} \url{https://docs.gitlab.com/user/project/pages/}\par\vspace{0.4cm}
+
+This installation step still has to be documented before GitLab Pages can be considered fully configured.
+
+\subsection{RKE2}
+
+\vspace{0.4cm}
+\subsubsection{Base Configuration, SSH \& Firewall}
+
+Start on the RKE2 server by updating the package index and installing the available upgrades. This prepares the server for the Kubernetes and GPU-related packages.
+
+\begin{lstlisting}[language=sh]
+sudo apt update && sudo apt upgrade -y
+\end{lstlisting}
+
+Enable and start SSH so administrators can manage the RKE2 server remotely.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl enable --now ssh.service
+\end{lstlisting}
+
+Open the ports required by RKE2, the Kubernetes API, etcd, node services, NodePort services, and the cluster networking components. Enable the firewall after the rules have been added.
+
+\begin{lstlisting}[language=sh]
+sudo ufw allow 22/tcp
+sudo ufw allow 6443/tcp
+sudo ufw allow 9345/tcp
+sudo ufw allow 10250/tcp
+sudo ufw allow 2379/tcp
+sudo ufw allow 2380/tcp
+sudo ufw allow 2381/tcp
+sudo ufw allow 30000:32767/tcp
+sudo ufw allow 8472/udp
+sudo ufw allow 9099/tcp
+sudo ufw allow 51820/udp
+sudo ufw allow 51821/udp
+sudo ufw enable
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{NVIDIA Drivers}
+\noindent\textit{Reference:} \url{https://docs.nvidia.com/datacenter/tesla/driver-installation-guide/ubuntu.html}\par\vspace{0.4cm}
+
+Install the Linux kernel headers for the currently running kernel. The NVIDIA driver build process needs these headers.
+
+\begin{lstlisting}[language=sh]
+sudo apt install -y linux-headers-$(uname -r)
+\end{lstlisting}
+
+Download and install the NVIDIA CUDA repository keyring, then refresh the package index. This makes the NVIDIA driver packages available through \texttt{apt}.
+
+\begin{lstlisting}[language=sh]
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt update
+\end{lstlisting}
+
+Install the NVIDIA compute and DKMS driver packages. DKMS rebuilds the kernel module when the kernel changes.
+
+\begin{lstlisting}[language=sh]
+sudo apt -V install -y libnvidia-compute nvidia-dkms
+\end{lstlisting}
+
+Reboot the server after installing the driver. The reboot loads the NVIDIA kernel module and completes the driver installation.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl reboot
+\end{lstlisting}
+
+Now verify the installation.
+
+\begin{lstlisting}[language=sh]
+nvidia-smi
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{NVIDIA Container Toolkit}
+\noindent\textit{Reference:} \url{https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html}\par\vspace{0.4cm}
+
+Install the base tools needed to add and verify the NVIDIA Container Toolkit repository.
+
+\begin{lstlisting}[language=sh]
+sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+  ca-certificates \
+  curl \
+  gnupg2
+\end{lstlisting}
+
+Add the NVIDIA Container Toolkit signing key and package repository. This repository provides the runtime integration for containers that need GPU access.
+
+\begin{lstlisting}[language=sh]
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+\end{lstlisting}
+
+Enable the experimental entries in the NVIDIA Container Toolkit repository file. This is needed when the selected package version is published through those entries.
+
+\begin{lstlisting}[language=sh]
+sudo sed -i -e '/experimental/ s/^#//g' /etc/apt/sources.list.d/nvidia-container-toolkit.list
+\end{lstlisting}
+
+Refresh the package index so Ubuntu can read the NVIDIA Container Toolkit repository changes.
+
+\begin{lstlisting}[language=sh]
+sudo apt update
+\end{lstlisting}
+
+Install the NVIDIA Container Toolkit packages at the selected version. Keeping the version explicit makes the installation reproducible.
+
+\begin{lstlisting}[language=sh]
+export NVIDIA_CONTAINER_TOOLKIT_VERSION=1.19.1-1
+sudo apt-get install -y \
+  nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+  nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+  libnvidia-container-tools=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+  libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+\end{lstlisting}
+
+Configure containerd to use the NVIDIA runtime. This allows Kubernetes workloads to request GPU resources through the container runtime.
+
+\begin{lstlisting}[language=sh]
+sudo nvidia-ctk runtime configure --runtime=containerd
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{Helm}
+\noindent\textit{Reference:} \url{https://helm.sh/docs/intro/install}\par\vspace{0.4cm}
+
+Install Helm from the official package repository. Helm is used later to install Kubernetes charts, including the SMB CSI driver.
+
+\begin{lstlisting}[language=sh]
+HELM_BUILDKITE_APT_KEY_ID="DDF78C3E6EBB2D2CC223C95C62BA89D07698DBC6"
+
+sudo apt-get install curl gpg apt-transport-https --yes
+
+curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey > "${TMPDIR:-/tmp}/helm.gpg"
+
+# Ensure that the key ID matches to prevent a repository compromise from establishing an attacker controlled key
+if [ "$(gpg --show-keys --with-colons "${TMPDIR:-/tmp}/helm.gpg" | awk -F: '$1 == "fpr" {print $10}' | head -n 1)" != "${HELM_BUILDKITE_APT_KEY_ID}" ]; then echo "ERROR: Unexpected Helm APT key ID: potential key compromise"; exit 1; fi
+
+cat "${TMPDIR:-/tmp}/helm.gpg" | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+
+sudo apt-get update
+sudo apt-get install helm
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{RKE2}
+
+\noindent\textit{Reference:} \url{https://docs.rke2.io/install/quickstart}\par\vspace{0.4cm}
+
+\paragraph{Variables}
+\begin{itemize}
+	\item PRIVATE\_IP\_ADDRESS: private network IP address of the RKE2 server that should be included in the cluster certificate.
+\end{itemize}
+
+Create the NetworkManager configuration directory. The next step places an RKE2-specific configuration file in this directory.
+
+\begin{lstlisting}[language=sh]
+sudo mkdir -p /etc/NetworkManager/conf.d/
+\end{lstlisting}
+
+Configure NetworkManager so it does not manage interfaces created by the Kubernetes networking layer. This prevents conflicts with RKE2 networking interfaces such as flannel and calico interfaces.
+
+\vspace{0.5cm}
+
+Edit \texttt{/etc/NetworkManager/conf.d/rke2-canal.conf}:
+\begin{lstlisting}
+[keyfile]
+unmanaged-devices=interface-name:flannel*;interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:vxlan-v6.calico;interface-name:wireguard.cali;interface-name:wg-v6.cali
+\end{lstlisting}
+
+Restart networking so the NetworkManager configuration is applied.
+
+\begin{lstlisting}
+sudo systemctl restart systemd-networkd
+\end{lstlisting}
+
+Create the RKE2 configuration directory. RKE2 reads its main configuration file from this location.
+
+\begin{lstlisting}[language=sh]
+sudo mkdir -p /etc/rancher/rke2/
+\end{lstlisting}
+
+Create the RKE2 configuration file and set the node options. Replace \texttt{<PRIVATE\_IP\_ADDRESS>} with the private IP address that clients and other systems should use to reach this node.
+
+\vspace{0.5cm}
+
+Edit \texttt{/etc/rancher/rke2/config.yaml}:
+\begin{lstlisting}[language=sh]
+write-kubeconfig-mode: "0644"
+tls-san:
+  - "<PRIVATE_IP_ADDRESS>"
+node-label:
+  - "role=gpu-node"
+debug: true
+\end{lstlisting}
+
+Install RKE2 with the official installation script. This installs the RKE2 server binaries and systemd service files.
+
+\begin{lstlisting}[language=sh]
+curl -sfL https://get.rke2.io | sudo sh -
+\end{lstlisting}
+
+Enable and start the RKE2 server service. The cluster starts after this command finishes.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl enable --now rke2-server.service
+\end{lstlisting}
+
+Add the RKE2 binaries to the shell path. This allows tools such as \texttt{kubectl} to run without the full binary path.
+
+\vspace{0.5cm}
+
+Edit \texttt{\textasciitilde{}/.bashrc}:
+\begin{lstlisting}[language=sh]
+...
+
+export PATH=$PATH:/var/lib/rancher/rke2/bin
+\end{lstlisting}
+
+Reload the shell configuration so the updated path is available in the current terminal session.
+
+\begin{lstlisting}[language=sh]
+source .bashrc
+\end{lstlisting}
+
+Create the local kubeconfig directory and copy the RKE2 kubeconfig into it. This lets the current user manage the cluster with Kubernetes CLI tools.
+
+\begin{lstlisting}[language=sh]
+mkdir -p ~/.kube
+sudo cp /etc/rancher/rke2/rke2.yaml ~/.kube/config
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{GPU Operator}
+\noindent\textit{Reference:} \url{https://docs.rke2.io/add-ons/gpu_operators}\par\vspace{0.4cm}
+
+Create the GPU Operator manifest in the RKE2 manifests directory. RKE2 automatically applies files from this directory, so the GPU Operator is deployed by the cluster.
+
+\vspace{0.5cm}
+
+Edit \texttt{/var/lib/rancher/rke2/server/manifests/gpu-operator.yaml}:
+\begin{lstlisting}[language=sh]
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: gpu-operator
+  namespace: kube-system
+spec:
+  repo: https://helm.ngc.nvidia.com/nvidia
+  chart: gpu-operator
+  version: v26.3.1
+  targetNamespace: gpu-operator
+  createNamespace: true
+  valuesContent: |-
+    cdi:
+      nriPluginEnabled: true
+\end{lstlisting}
+
+Restart RKE2 after adding or changing the manifest. This lets the cluster reload the configuration and apply the GPU Operator deployment.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl restart rke2-server
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{SMB CSI Driver}
+\noindent\textit{Reference:} \url{https://github.com/kubernetes-csi/csi-driver-smb}\par\vspace{0.4cm}
+
+Install the SMB CSI driver into the Kubernetes cluster with Helm. This driver allows Kubernetes workloads to mount SMB shares as persistent storage.
+
+\begin{lstlisting}
+helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
+helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace kube-system --version 1.20.1
+\end{lstlisting}
+
+\subsection{SMB}
+
+\vspace{0.4cm}
+\subsubsection{Base Configuration, SSH \& Firewall}
+
+Start on the SMB server by updating the package index and installing the available upgrades.
+
+\begin{lstlisting}[language=sh]
+sudo apt update && sudo apt upgrade -y
+\end{lstlisting}
+
+Enable and start SSH so administrators can manage the SMB server remotely.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl enable --now ssh.service
+\end{lstlisting}
+
+Open the ports for SSH and SMB file sharing, then enable the firewall.
+
+\begin{lstlisting}[language=sh]
+sudo ufw allow 22/tcp
+sudo ufw allow 445/tcp
+sudo ufw enable
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{SMB}
+
+\noindent\textit{Reference:} \url{https://ubuntu.com/server/docs/how-to/samba/file-server/}\par\vspace{0.4cm}
+
+\paragraph{Variables}
+\begin{itemize}
+	\item STUDY\_FOLDER: name of the study directory that will be created under the Samba share.
+	\item STUDY\_USER: Linux and Samba user account that will be used to access the study share \(min. 8 characters\).
+\end{itemize}
+
+Install Samba on the SMB server. Samba provides the file share used by the rest of the environment.
+
+\begin{lstlisting}[language=sh]
+sudo apt update
+sudo apt install -y samba
+\end{lstlisting}
+
+Create the study folder structure inside the Samba share. Replace \texttt{<STUDY\_FOLDER>} with the folder name for the study.
+
+\begin{lstlisting}[language=sh]
+sudo mkdir -p /srv/samba/<STUDY_FOLDER>/A_ShortDescription
+sudo mkdir -p /srv/samba/<STUDY_FOLDER>/B_Documentation
+sudo mkdir -p /srv/samba/<STUDY_FOLDER>/C_PersonalData
+sudo mkdir -p /srv/samba/<STUDY_FOLDER>/D_DataPreparation
+sudo mkdir -p /srv/samba/<STUDY_FOLDER>/E_ResearchData
+sudo mkdir -p /srv/samba/<STUDY_FOLDER>/F_DataAnalysis
+sudo mkdir -p /srv/samba/<STUDY_FOLDER>/G_Output
+sudo mkdir -p /srv/samba/<STUDY_FOLDER>/H_Hidden
+\end{lstlisting}
+
+Set ownership on the study folder so the Linux study user can manage it. This keeps the folder structure easy to maintain before access is handled through Samba.
+
+\begin{lstlisting}[language=sh]
+sudo chown -R <STUDY_USER>:<STUDY_USER> /srv/samba/<STUDY_FOLDER>/
+\end{lstlisting}
+
+Configure the Samba share. The example exposes the Samba directory as a writable share.
+
+\vspace{0.5cm}
+
+Edit \texttt{/etc/samba/smb.conf}:
+\begin{lstlisting}[language=sh]
+...
+
+[sambashare]
+   comment = Samba RFS folder
+   path = /srv/samba/
+   browsable = yes
+   read only = no
+   create mask = 0755
+   directory mask = 0755
+\end{lstlisting}
+
+Restart the Samba services so the new share configuration is applied.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl restart smbd.service nmbd.service
+\end{lstlisting}
+
+\subsection{Connections}
+
+\vspace{0.4cm}
+\subsubsection{GitLab to RKE2}
+
+\paragraph{Variables}
+\begin{itemize}
+	\item DEPLOY\_TOKEN\_USERNAME: username generated for the GitLab deploy token.
+	\item DEPLOY\_TOKEN\_PASSWORD: password or token value generated for the GitLab deploy token.
+\end{itemize}
+
+Use the deploy token created during the templates setup. On RKE2, configure registry authentication so the cluster can pull container images from the GitLab registry.
+
+\vspace{0.5cm}
+
+Edit \texttt{/etc/rancher/rke2/registries.yaml}:
+\begin{lstlisting}[language=sh]
+configs:
+  "<DOMAIN_NAME>:5050":
+    auth:
+      username: "<DEPLOY_TOKEN_USERNAME>"
+      password: "<DEPLOY_TOKEN_PASSWORD>"
+\end{lstlisting}
+
+Restart RKE2 so it reloads the registry authentication configuration.
+
+\begin{lstlisting}[language=sh]
+sudo systemctl restart rke2-server
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{RKE2 to GitLab}
+
+\paragraph{Variables}
+\begin{itemize}
+	\item PRIVATE\_IP\_ADDRESS: private network IP address that GitLab Runner should use to reach the RKE2 API server.
+\end{itemize}
+
+On RKE2, copy the kubeconfig from \texttt{/etc/rancher/rke2/rke2.yaml}. This file contains the cluster connection information that GitLab Runner needs.
+
+\vspace{0.5cm}
+
+On GitLab, create the kubeconfig file for the GitLab Runner user. First create the file, then paste the copied kubeconfig content into it.
+\begin{lstlisting}[language=sh]
+sudo -u gitlab-runner mkdir -p /home/gitlab-runner/.kube
+sudo -u gitlab-runner touch /home/gitlab-runner/.kube/config
+\end{lstlisting}
+
+Paste the copied RKE2 kubeconfig content into \texttt{/home/gitlab-runner/.kube/config}.
+
+\vspace{0.5cm}
+
+Update the kubeconfig so it points to the private RKE2 address. This makes GitLab Runner connect to the cluster through the internal network.
+
+\vspace{0.5cm}
+
+Edit \texttt{/home/gitlab-runner/.kube/config}:
+\begin{lstlisting}[language=sh]
+...
+server: https://<PRIVATE_IP_ADDRESS>:6443
+...
+\end{lstlisting}
+
+Mount the kubeconfig into the GitLab Runner container and enable privileged mode. This gives CI jobs access to the Kubernetes configuration when they deploy to RKE2.
+
+\vspace{0.5cm}
+
+Edit \texttt{/etc/gitlab-runner/config.toml}:
+\begin{lstlisting}[language=sh]
+...
+volumes = ["/cache", "/home/gitlab-runner/.kube:/root/.kube:ro"]
+privileged = true
+...
+\end{lstlisting}
+
+Restart GitLab Runner after changing its configuration. The runner will then use the updated mount and privilege settings.
+
+\begin{lstlisting}
+sudo gitlab-runner restart
+\end{lstlisting}
+
+\vspace{0.4cm}
+\subsubsection{GitLab and RKE2 to SMB}
+
+\paragraph{Variables}
+\begin{itemize}
+	\item SMB\_USERNAME: Samba username used by GitLab jobs or Kubernetes workloads to access the SMB share.
+	\item SMB\_PASSWORD: Samba password for the SMB user account.
+\end{itemize}
+
+On GitLab, add \texttt{SMB\_USERNAME} and \texttt{SMB\_PASSWORD} as masked and hidden repository variables for each project that needs the SMB share. Follow this path in the GitLab project settings:
+
+\vspace{0.5cm}
+
+Projects $\rightarrow$ \texttt{<PROJECT>} $\rightarrow$ Settings $\rightarrow$ CI/CD $\rightarrow$ Variables $\rightarrow$ CI/CD Variables
+\vspace{0.4cm}
+\subsection{Templates}
+
+The templates repository is the shared GitLab project that contains the reusable CI/CD, Docker, and Kubernetes files for user repositories. Create this project inside the same GitLab group as the user projects. In this environment, the templates are expected at:
+
+\begin{lstlisting}[language=sh]
+umcu-ai-deployments/templates
+\end{lstlisting}
+
+The project path matters because user projects include the shared pipeline from this location. The shared pipeline also clones the templates repository during the build and deploy jobs. If another project path is used, update the include paths and clone paths in the CI templates before users start creating projects.
+
+\subsubsection{Group Settings}
+
+\paragraph{Variables}
+\begin{itemize}
+	\item GROUP: GitLab group that contains the templates repository, user projects, and container images.
+	\item DEPLOY\_TOKEN\_USERNAME: username generated for the GitLab deploy token.
+	\item DEPLOY\_TOKEN\_PASSWORD: password or token value generated for the GitLab deploy token.
+	\item SMB\_SOURCE: SMB share source used by the Kubernetes SMB CSI volume.
+\end{itemize}
+
+Create a deploy token for the group that contains the user projects and container images. RKE2 uses this token to authenticate to the GitLab container registry when Kubernetes pulls project images. Follow the path below in the GitLab group settings. Figure~\ref{fig:group-deploytokens} shows the group deploy token page.
+
+\vspace{0.5cm}
+
+Groups $\rightarrow$ \texttt{<GROUP>} $\rightarrow$ Settings $\rightarrow$ Repository $\rightarrow$ Deploy tokens
+\vspace{0.4cm}
+
+\documentationimage{group-deploytokens}{GitLab group deploy token settings.}
+
+Add \texttt{SMB\_SOURCE} as a group CI/CD variable for the same parent group. Set the value to the full SMB source path, for example \texttt{//<PRIVATE\_IP\_ADDRESS>/samba}. Replace \texttt{<PRIVATE\_IP\_ADDRESS>} with the private IP address of the SMB server. Follow the path below in the GitLab group settings. Figure~\ref{fig:group-variables} shows the group variables page.
+
+\vspace{0.5cm}
+
+Groups $\rightarrow$ \texttt{<GROUP>} $\rightarrow$ Settings $\rightarrow$ CI/CD $\rightarrow$ Variables $\rightarrow$ CI/CD Variables
+\vspace{0.4cm}
+
+\documentationimage{group-variables}{GitLab group CI/CD variables page.}
+
+\subsubsection{Project Permissions}
+
+Allow the templates repository to be accessed by CI/CD job tokens from the full group. This lets pipelines in the group read the shared templates repository when they include the common CI/CD templates. Follow the path below in the GitLab project settings. Figure~\ref{fig:templates-jobtoken} shows the job token allowlist with the deployment group added.
+
+\vspace{0.5cm}
+
+Projects $\rightarrow$ \texttt{<TEMPLATES\_PROJECT>} $\rightarrow$ Settings $\rightarrow$ CI/CD $\rightarrow$ Job token permissions
+\vspace{0.4cm}
+
+\documentationimage{templates-jobtoken}{Templates repository job token permissions with the deployment group in the CI/CD job token allowlist.}
+
+The templates repository should contain the following structure. Figure~\ref{fig:templates-repository} shows the same repository in GitLab after the shared folders have been pushed.
+
+\documentationimage{templates-repository}{Templates repository in GitLab with the shared CI/CD, Docker, and Kubernetes folders.}
+
+\begin{lstlisting}[language=sh]
+.
+|-- gitlab
+|   |-- shared
+|   |   |-- .gitlab-ci.yml
+|   |-- tensorflow-gpu-environment
+|   |   |-- .gitlab-ci.yml
+|   |-- python-gpu-environment
+|   |   |-- .gitlab-ci.yml
+|   |-- docker-gpu-environment
+|       |-- .gitlab-ci.yml
+|-- docker
+|   |-- tensorflow-gpu-environment
+|   |   |-- Dockerfile
+|   |-- python-gpu-environment
+|       |-- Dockerfile
+|-- kubernetes
+    |-- gpu-environment
+        |-- deployment.yml
+        |-- job.yml
+        |-- pv.yml
+        |-- pvc.yml
+        |-- service.yml
+\end{lstlisting}
+
+The files in \texttt{gitlab} define the CI templates that user projects include. The environment-specific templates mainly select the Dockerfile path. After that, they include \texttt{gitlab/shared/.gitlab-ci.yml}, which contains the shared build and deployment pipeline.
+
+\vspace{0.5cm}
+
+The files in \texttt{docker} define the standard GPU container images. The TensorFlow template uses a TensorFlow GPU Dockerfile that already includes the common notebook and TensorFlow packages. The Python template uses a Python GPU Dockerfile and installs dependencies from the user project's \texttt{requirements.txt}. The Docker template does not use a shared Dockerfile; it expects the user project to provide its own \texttt{Dockerfile}.
+
+\vspace{0.5cm}
+
+The files in \texttt{kubernetes/gpu-environment} define the Kubernetes resources applied by the shared pipeline. From these manifests, the pipeline creates or updates the SMB-backed persistent volume, persistent volume claim, training job, and TensorBoard service.
+
+\vspace{0.5cm}
+
+After pushing the templates repository to GitLab, verify that user project pipelines can read it with their CI/CD job token. This permission is configured in the templates project settings under job token permissions. Without it, user pipelines may start but fail when they try to include or clone the templates repository.
+
+\vspace{0.5cm}
+
+Finally, review the values that are specific to the environment before users start using the templates. The GitLab project path in the CI files must match the templates repository location. The Kubernetes storage manifests must point to the correct SMB share and study folder layout. The Dockerfiles should use a CUDA base image version that matches the RKE2 GPU runtime.
+
+\newpage
+\section{Manual}
+\subsection{Before You Start}
+
+This manual is a follow-along guide for creating a user project that runs Python or notebook code on the GPU-enabled RKE2 environment. Read it once before starting. Some choices, especially the template and storage layout, affect files that are added later in the workflow.
+
+\vspace{0.5cm}
+
+The user repository stays small. It contains the project code and a short GitLab CI configuration. The shared templates handle the container build, container registry upload, Kubernetes deployment, SMB storage mount, and optional TensorBoard access.
+
+\subsection{Templates Repository}
+
+The Templates repository contains the reusable CI/CD and deployment logic. User projects do not copy this logic into their own repository. Instead, they include one template file from the Templates repository in \texttt{.gitlab-ci.yml}.
+
+\vspace{0.5cm}
+
+The Templates repository has three main parts. The \texttt{gitlab} folder contains the CI templates that user projects include. The \texttt{docker} folder contains the standard Dockerfiles for the TensorFlow and Python GPU templates. The \texttt{kubernetes} folder contains the Kubernetes manifests that create the Job, storage resources, and TensorBoard service.
+
+\vspace{0.5cm}
+
+This design keeps user projects focused on the actual work: the model or processing code, optional dependency files, and the template include. When the pipeline starts, GitLab reads the selected template from the Templates repository and uses it to build and deploy the project.
+
+\subsection{Step 1: Create the GitLab Project}
+
+Create a new GitLab project inside the group that is allowed to use the shared templates repository. The project must be created inside this group because the pipeline reads the templates with the GitLab CI job token. If the project is created somewhere else, the include can fail or the pipeline may not be allowed to clone the shared templates. Figure~\ref{fig:repository-creation} shows the GitLab blank project form with the deployment group selected.
+
+\vspace{0.5cm}
+
+\documentationimage{repository-creation}{GitLab blank project creation form for a new user repository.}
+
+After creating the project, clone it locally or open it in the GitLab web editor. The remaining steps are performed in the root of this new repository. Figure~\ref{fig:user-repository} shows an example user repository with the expected files.
+
+\documentationimage{user-repository}{Example user repository with a notebook entry point and GitLab CI configuration.}
+
+\subsection{Step 2: Add the Entry Point}
+
+Add the code that should run in the GPU environment. The pipeline looks for one of the following files in the repository root:
+
+\begin{itemize}
+	\item \texttt{main.ipynb}: executed with Papermill.
+	\item \texttt{main.py}: executed with Python.
+\end{itemize}
+
+Only one entry point is required. If both files exist, the notebook is executed first because the templates check for \texttt{main.ipynb} before \texttt{main.py}.
+
+\vspace{0.5cm}
+
+Project code should use the mounted storage folders directly:
+
+\begin{itemize}
+	\item Read input data from \texttt{E\_ResearchData}. This folder is mounted read-only.
+	\item Write generated output to \texttt{G\_Output}.
+	\item For notebook projects, the executed notebook is written under \texttt{G\_Output/notebooks}.
+\end{itemize}
+
+\subsection{Step 3: Choose a Template}
+
+Choose one of the available templates before creating \texttt{.gitlab-ci.yml}. Start with the simplest template that fits the project.
+
+\subsubsection{\texttt{tensorflow-gpu-environment}}
+
+Choose \texttt{tensorflow-gpu-environment} when the project can run with the standard TensorFlow GPU image. This is the easiest option for notebook-based experiments and TensorFlow workloads because the image already includes:
+
+\begin{itemize}
+	\item \texttt{jupyter}
+	\item \texttt{papermill}
+	\item \texttt{pandas}
+	\item \texttt{numpy}
+	\item \texttt{matplotlib}
+	\item \texttt{tensorflow}
+	\item \texttt{tensorboard}
+\end{itemize}
+
+With this template, the user normally only needs to add \texttt{main.ipynb} or \texttt{main.py}. Extra project files can be placed next to the entry point. They are copied into the container image during the build.
+
+\subsubsection{\texttt{python-gpu-environment}}
+
+Choose \texttt{python-gpu-environment} when the project needs extra Python packages but does not need a custom Dockerfile. Add a \texttt{requirements.txt} file to the repository root. The image installs the packages from that file before it copies the project code.
+
+\vspace{0.5cm}
+
+For notebook projects, add \texttt{papermill} to \texttt{requirements.txt}. The Kubernetes Job uses Papermill to execute \texttt{main.ipynb}. The requirements file must also include the other notebook execution dependencies that the code needs.
+
+\subsubsection{\texttt{docker-gpu-environment}}
+
+Choose \texttt{docker-gpu-environment} only when the project needs custom system packages, a different framework stack, or a dependency installation process that does not fit in \texttt{requirements.txt}. In this case, add a \texttt{Dockerfile} to the repository root. The shared pipeline still builds and deploys the image, but the project is responsible for installing the runtime, Python packages, system packages, and tools required by the entry point.
+
+\vspace{0.5cm}
+
+Base custom Dockerfiles on the same NVIDIA CUDA image used by the other GPU templates whenever possible. This keeps the CUDA and cuDNN versions aligned with the RKE2 GPU runtime and reduces the chance of driver, library, or TensorFlow compatibility problems.
+
+\begin{lstlisting}[language=sh]
+FROM nvidia/cuda:12.9.2-cudnn-devel-ubuntu24.04
+\end{lstlisting}
+
+A minimal Dockerfile for a notebook-capable project can look like this:
+
+\begin{lstlisting}[language=sh]
+FROM nvidia/cuda:12.9.2-cudnn-devel-ubuntu24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    libgl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir --break-system-packages \
+    papermill \
+    pandas \
+    numpy \
+    matplotlib
+
+WORKDIR /app
+COPY . .
+\end{lstlisting}
+
+For notebook projects, \texttt{papermill} must be available in the Docker image together with a usable notebook kernel. For Python projects, make sure the image can run \texttt{python3 main.py}. The Dockerfile does not need to contain the full pipeline logic. If the image defines its own \texttt{CMD}, the Kubernetes Job command from the shared template overrides it during deployment.
+
+\subsection{Step 4: Add the CI Configuration}
+
+Add a file named \texttt{.gitlab-ci.yml} to the root of the repository. This file includes the selected shared template.
+
+\begin{lstlisting}[language=sh]
+include:
+  - project: "<GROUP>/templates"
+    file: "gitlab/<TEMPLATE>/.gitlab-ci.yml"
+\end{lstlisting}
+
+For the current environment, a TensorFlow GPU project uses:
+
+\begin{lstlisting}[language=sh]
+include:
+  - project: "umcu-ai-deployments/templates"
+    file: "gitlab/tensorflow-gpu-environment/.gitlab-ci.yml"
+\end{lstlisting}
+
+Replace the template path when using \texttt{python-gpu-environment} or \texttt{docker-gpu-environment}.
+
+\subsection{Step 5: Check the Repository Layout}
+
+Before pushing, check that the repository layout matches the selected template.
+
+\vspace{0.5cm}
+
+A minimal TensorFlow notebook project has the following structure:
+
+\begin{lstlisting}[language=sh]
+.
+|-- .gitlab-ci.yml
+|-- main.ipynb
+\end{lstlisting}
+
+A Python project with custom dependencies has the following structure:
+
+\begin{lstlisting}[language=sh]
+.
+|-- .gitlab-ci.yml
+|-- main.py
+|-- requirements.txt
+\end{lstlisting}
+
+A project with a custom container image has the following structure:
+
+\begin{lstlisting}[language=sh]
+.
+|-- .gitlab-ci.yml
+|-- Dockerfile
+|-- main.py
+\end{lstlisting}
+
+Additional source files, modules, configuration files, and helper scripts can be added to the repository. They are copied into the container image and are available from the application working directory during execution.
+
+\subsection{Step 6: Configure Project Variables}
+
+The pipeline needs SMB credentials so Kubernetes can mount the shared storage. Add these CI/CD variables to the GitLab project:
+
+\begin{itemize}
+	\item \texttt{SMB\_USERNAME}: username for the Samba account.
+	\item \texttt{SMB\_PASSWORD}: password for the Samba account.
+	\item \texttt{STUDY\_FOLDER}: name of the study directory on the SMB share.
+\end{itemize}
+
+Store these values as protected, masked, and hidden variables when possible. Configure them as GitLab CI/CD variables. Use project-level variables when only one project needs access, or group-level variables when multiple projects use the same storage account. Figure~\ref{fig:repository-variables} shows the project variables page.
+
+\documentationimage{repository-variables}{Project CI/CD variables used by the deployment pipeline.}
+
+\subsection{Step 7: Verify the Storage Paths}
+
+Before starting the pipeline, make sure the study folder exists on the SMB share and contains the expected folder structure. Figure~\ref{fig:smb-folder-structure} shows the expected SMB folder layout.
+
+\documentationimage{smb-folder-structure}{Expected SMB study folder structure.}
+
+\begin{itemize}
+	\item \texttt{E\_ResearchData}: input data for the model or processing script.
+	\item \texttt{G\_Output}: output location for generated files, model results, logs, and executed notebooks.
+\end{itemize}
+
+The current Kubernetes template maps these folders from the configured study folder on the SMB share. Before running a project for another study folder, make sure the Kubernetes storage template points to the correct SMB subpaths and that the corresponding folders exist on the SMB server.
+
+\subsection{Step 8: Commit and Push}
+
+Commit the project files and push them to GitLab. GitLab starts the pipeline automatically after the push.
+
+\vspace{0.5cm}
+
+The pipeline runs in two main stages:
+
+\begin{itemize}
+	\item \texttt{build}: builds the container image and pushes it to the GitLab container registry.
+	\item \texttt{deploy}: creates or updates the Kubernetes storage resources and starts the Kubernetes Job.
+\end{itemize}
+
+\subsection{Step 9: Monitor the Pipeline}
+
+Open the project pipeline page in GitLab and watch the status. A successful pipeline means that the image was built, the Kubernetes resources were applied, and the training or processing job was submitted. Figure~\ref{fig:pipeline-page} shows the pipeline view with the build, deploy, and log jobs.
+
+\documentationimage{pipeline-page}{GitLab pipeline page showing the build, deploy, and TensorBoard log jobs.}
+
+\vspace{0.5cm}
+
+If the pipeline fails, open the failed job log first. Build failures usually point to missing dependencies or Dockerfile problems. Deploy failures usually point to Kubernetes access, registry authentication, or SMB credential problems. Figure~\ref{fig:job-page} shows the job log view used for troubleshooting.
+
+\documentationimage{job-page}{GitLab job page used to inspect job logs and pipeline output.}
+
+\vspace{0.5cm}
+
+TensorBoard can be used when the project writes TensorBoard event files to \texttt{G\_Output}. When the TensorBoard job is enabled in the pipeline, GitLab creates an environment with a URL that opens the TensorBoard service. Open the project environments page in GitLab and select the TensorBoard environment for the latest pipeline. Figure~\ref{fig:environment-page} shows the environment link, and Figure~\ref{fig:tensorboard} shows the TensorBoard dashboard after it opens.
+
+\documentationimage{environment-page}{GitLab environments page with the TensorBoard environment link.}
+
+\documentationimage{tensorboard}{TensorBoard dashboard opened from the GitLab environment URL.}
+
+\subsection{Step 10: Check the Results}
+
+After the run completes, check the study folder on the SMB share. Input data should remain in \texttt{E\_ResearchData}. Generated results, plots, model files, logs, and executed notebooks should be stored in \texttt{G\_Output}.
+
+\vspace{0.5cm}
+
+For notebook projects, Papermill writes the executed notebook to \texttt{G\_Output/notebooks}. Use the pipeline and Kubernetes logs to confirm whether the entry point completed successfully.
+
+\subsection{Final Checklist}
+
+\begin{itemize}
+	\item The project is created inside the GitLab group that has access to the shared templates.
+	\item The repository contains \texttt{main.ipynb} or \texttt{main.py} at the root.
+	\item The repository contains \texttt{.gitlab-ci.yml} with the correct shared template include.
+	\item The selected template matches the project requirements.
+	\item \texttt{requirements.txt} is present when using \texttt{python-gpu-environment}.
+	\item \texttt{Dockerfile} is present when using \texttt{docker-gpu-environment}.
+	\item Notebook projects include \texttt{papermill} when using the Python or Docker template.
+	\item The project reads input data from \texttt{E\_ResearchData}.
+	\item The project writes output data to \texttt{G\_Output}.
+	\item \texttt{SMB\_USERNAME} and \texttt{SMB\_PASSWORD} are configured as CI/CD variables.
+\end{itemize}
+
+\newpage
+\section{References}
+
+The following URLs are referenced throughout this document. They are collected here so the original documentation and download locations can be found quickly.
+
+\subsection{Documentation}
+
+\begin{itemize}
+	\item \url{https://docs.docker.com/engine/install/ubuntu/}
+	\item \url{https://docs.gitlab.com/install/package/ubuntu/}
+	\item \url{https://docs.gitlab.com/omnibus/settings/smtp/}
+	\item \url{https://docs.gitlab.com/runner/install/linux-repository/}
+	\item \url{https://docs.gitlab.com/administration/packages/container_registry/}
+	\item \url{https://docs.gitlab.com/user/project/pages/}
+	\item \url{https://docs.nvidia.com/datacenter/tesla/driver-installation-guide/ubuntu.html}
+	\item \url{https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html}
+	\item \url{https://helm.sh/docs/intro/install}
+	\item \url{https://docs.rke2.io/install/quickstart}
+	\item \url{https://docs.rke2.io/add-ons/gpu_operators}
+	\item \url{https://github.com/kubernetes-csi/csi-driver-smb}
+	\item \url{https://ubuntu.com/server/docs/how-to/samba/file-server/}
+\end{itemize}
+
+\subsection{Repositories and Downloads}
+
+\begin{itemize}
+	\item \url{https://download.docker.com/linux/ubuntu/gpg}
+	\item \url{https://download.docker.com/linux/ubuntu}
+	\item \url{https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh}
+	\item \url{https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh}
+	\item \url{https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb}
+	\item \url{https://nvidia.github.io/libnvidia-container/gpgkey}
+	\item \url{https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list}
+	\item \url{https://packages.buildkite.com/helm-linux/helm-debian/gpgkey}
+	\item \url{https://packages.buildkite.com/helm-linux/helm-debian/any/}
+	\item \url{https://get.rke2.io}
+	\item \url{https://helm.ngc.nvidia.com/nvidia}
+	\item \url{https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts}
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,158 @@
+stages:
+  - build
+  - deploy
+  - log
+
+variables:
+  KUBERNETES_TEMPLATE_PATH: /tmp/templates/kubernetes/gpu-environment
+  NOTEBOOK_KERNEL: python3
+
+build-docker-image:
+  stage: build
+  image: docker:29.5.3
+  services:
+    - name: docker:29.5.3-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - apk add --no-cache ca-certificates git
+  script:
+    - git clone "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}${CI_SERVER_PORT:+:${CI_SERVER_PORT}}/${CI_PROJECT_NAMESPACE}/templates.git" "/tmp/templates"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
+
+    - docker build \
+      --cache-from "$CI_REGISTRY_IMAGE:cache" \
+      --build-arg BUILDKIT_INLINE_CACHE=1 \
+      -t "$CI_REGISTRY_IMAGE:cache" \
+      -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" \
+      -f "$DOCKERFILE_PATH" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:cache"
+
+deploy-kubernetes:
+  image: alpine:latest
+  stage: deploy
+  needs:
+    - build-docker-image
+  variables:
+    KUBECONFIG: /root/.kube/config
+  before_script:
+    - apk add --no-cache curl ca-certificates git gettext
+    - curl -LO "https://dl.k8s.io/release/v1.36.0/bin/linux/amd64/kubectl"
+    - chmod +x kubectl
+    - mv kubectl /usr/local/bin/kubectl
+  script:
+    - |
+      # Clone the template repository so Kubernetes manifests are available.
+    - git clone "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}${CI_SERVER_PORT:+:${CI_SERVER_PORT}}/${CI_PROJECT_NAMESPACE}/templates.git" "/tmp/templates"
+    - |
+      # Recreate the Job because Kubernetes Jobs are not updated in place.
+      kubectl delete job "$CI_PROJECT_NAME-job" --ignore-not-found
+      kubectl delete pod \
+        -l "app=$CI_PROJECT_NAME,component=training" \
+        --ignore-not-found
+    - |
+      # Create or update the SMB credentials used by the SMB CSI volume.
+      kubectl create secret generic "$CI_PROJECT_NAME-smb-creds" \
+        --from-literal=username="$SMB_USERNAME" \
+        --from-literal=password="$SMB_PASSWORD" \
+        --from-literal=domain="${SMB_DOMAIN:-}" \
+        --namespace=default \
+        --dry-run=client -o yaml | kubectl apply -f -
+    - |
+      # Apply storage before workloads so the PVC can bind before pods are scheduled.
+      envsubst < "$KUBERNETES_TEMPLATE_PATH/pv.yml" | kubectl apply -f -
+      envsubst < "$KUBERNETES_TEMPLATE_PATH/pvc.yml" | kubectl apply -f -
+    - |
+      # Apply the training job.
+      envsubst < "$KUBERNETES_TEMPLATE_PATH/job.yml" | kubectl apply -f -
+
+.tensorboard:
+  image: alpine:latest
+  stage: log
+  needs:
+    - deploy-kubernetes
+  variables:
+    KUBECONFIG: /root/.kube/config
+  environment:
+    name: review/$CI_PROJECT_NAME/tensorboard-$CI_COMMIT_REF_SLUG
+    url: "$TENSORBOARD_URL"
+  before_script:
+    - apk add --no-cache curl ca-certificates git gettext
+    - curl -LO "https://dl.k8s.io/release/v1.36.0/bin/linux/amd64/kubectl"
+    - chmod +x kubectl
+    - mv kubectl /usr/local/bin/kubectl
+  script:
+    - |
+      # Resolve the browser-reachable host used in the GitLab environment URL.
+      if [ -z "$TENSORBOARD_HOST" ]; then
+        TENSORBOARD_SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || true)
+        TENSORBOARD_HOST=$(printf '%s\n' "$TENSORBOARD_SERVER" | sed -E 's#^https?://([^:/]+).*#\1#')
+        export TENSORBOARD_HOST
+      fi
+    - |
+      # Clone the template repository so Kubernetes manifests are available.
+    - git clone "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}${CI_SERVER_PORT:+:${CI_SERVER_PORT}}/${CI_PROJECT_NAMESPACE}/templates.git" "/tmp/templates"
+    - |
+      # Replace any previous TensorBoard instance before creating a new one.
+      kubectl delete service "$CI_PROJECT_NAME-service" --ignore-not-found
+      kubectl delete deployment "$CI_PROJECT_NAME-deployment" --ignore-not-found
+    - |
+      # Apply TensorBoard deployment and service separately from the training job.
+      envsubst < "$KUBERNETES_TEMPLATE_PATH/deployment.yml" | kubectl apply -f -
+      envsubst < "$KUBERNETES_TEMPLATE_PATH/service.yml" | kubectl apply -f -
+    - |
+      # Store the dynamic NodePort URL as a dotenv report for GitLab environments.
+      TENSORBOARD_NODE_PORT=$(kubectl get service $CI_PROJECT_NAME-service -o jsonpath='{.spec.ports[0].nodePort}')
+      echo "TENSORBOARD_URL=http://${TENSORBOARD_HOST}:${TENSORBOARD_NODE_PORT}" > deploy.env
+      echo "TensorBoard URL: http://${TENSORBOARD_HOST}:${TENSORBOARD_NODE_PORT}"
+  artifacts:
+    reports:
+      dotenv: deploy.env
+
+# TODO: COMPLETE OVERHAUL
+.training-logs:
+  image: alpine:latest
+  stage: log
+  needs:
+    - deploy-kubernetes
+  variables:
+    KUBECONFIG: /root/.kube/config
+    K8S_JOB_LOG_STATUS_POLLS: "720"
+    K8S_JOB_LOG_STATUS_SLEEP_SECONDS: "5"
+  before_script:
+    - apk add --no-cache curl ca-certificates
+    - curl -LO "https://dl.k8s.io/release/v1.36.0/bin/linux/amd64/kubectl"
+    - chmod +x kubectl
+    - mv kubectl /usr/local/bin/kubectl
+  script:
+    - |
+      # Wait for the training pod to exist before following logs.
+      for _ in $(seq 1 60); do
+        if kubectl get pod -l "app=$CI_PROJECT_NAME,component=training" -o name | grep -q .; then
+          break
+        fi
+        sleep 5
+      done
+    - |
+      # Stream logs into the GitLab job, then report the Kubernetes Job result.
+      kubectl logs -f job/"$CI_PROJECT_NAME-job" --all-containers=true || true
+
+      for _ in $(seq 1 "$K8S_JOB_LOG_STATUS_POLLS"); do
+        if kubectl wait --for=condition=complete job/"$CI_PROJECT_NAME-job" --timeout=1s; then
+          exit 0
+        fi
+
+        if kubectl wait --for=condition=failed job/"$CI_PROJECT_NAME-job" --timeout=1s; then
+          kubectl describe job "$CI_PROJECT_NAME-job"
+          exit 1
+        fi
+
+        sleep "$K8S_JOB_LOG_STATUS_SLEEP_SECONDS"
+      done
+
+      kubectl describe job "$CI_PROJECT_NAME-job"
+      exit 1

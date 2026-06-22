@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${CI_PROJECT_NAME}-job
+  labels:
+    app: ${CI_PROJECT_NAME}
+    component: training
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: ${CI_PROJECT_NAME}
+        component: training
+    spec:
+      imagePullSecrets:
+        - name: ${K8S_IMAGE_PULL_SECRET}
+      containers:
+        - name: ${CI_PROJECT_NAME}
+          image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
+          env:
+            - name: NOTEBOOK_KERNEL
+              value: ${NOTEBOOK_KERNEL}
+          command: ["/bin/sh", "-lc"]
+          args:
+            - |
+              if [ -f main.ipynb ]; then
+                mkdir -p G_Output/notebooks
+                papermill main.ipynb G_Output/notebooks/executed-main.ipynb -k "${NOTEBOOK_KERNEL:-python3}" --log-output --no-progress-bar
+              elif [ -f main.py ]; then
+                python3 main.py
+              else
+                exit 1
+              fi
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: output-volume
+              mountPath: /app/E_ResearchData
+              subPath: ${STUDY_FOLDER}/E_ResearchData
+              readOnly: true
+            - name: output-volume
+              mountPath: /app/G_Output
+              subPath: ${STUDY_FOLDER}/G_Output
+      volumes:
+        - name: output-volume
+          persistentVolumeClaim:
+            claimName: ${CI_PROJECT_NAME}-pvc
+      restartPolicy: Never
+  backoffLimit: 3

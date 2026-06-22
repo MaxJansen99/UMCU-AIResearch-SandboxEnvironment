@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${CI_PROJECT_NAME}-deployment
+  labels:
+    app: ${CI_PROJECT_NAME}
+    component: tensorboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${CI_PROJECT_NAME}
+      component: tensorboard
+  template:
+    metadata:
+      labels:
+        app: ${CI_PROJECT_NAME}
+        component: tensorboard
+    spec:
+      imagePullSecrets:
+        - name: ${K8S_IMAGE_PULL_SECRET}
+      containers:
+        - name: ${CI_PROJECT_NAME}
+          image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
+          command: ["tensorboard", "--logdir=/app/G_Output", "--host=0.0.0.0"]
+          ports:
+            - containerPort: 6006
+          volumeMounts:
+            - name: output-volume
+              mountPath: /app/G_Output
+              subPath: ${STUDY_FOLDER}/G_Output
+      volumes:
+        - name: output-volume
+          persistentVolumeClaim:
+            claimName: ${CI_PROJECT_NAME}-pvc

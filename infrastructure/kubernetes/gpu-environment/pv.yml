@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ${CI_PROJECT_NAME}-pv
+  labels:
+    app: ${CI_PROJECT_NAME}
+    component: output
+spec:
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  storageClassName: ""
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - dir_mode=0770
+    - file_mode=0660
+    - vers=3.0
+  csi:
+    driver: smb.csi.k8s.io
+    volumeHandle: ${CI_PROJECT_PATH_SLUG}-smb
+    volumeAttributes:
+      source: "${SMB_SOURCE}"
+    nodeStageSecretRef:
+      name: ${CI_PROJECT_NAME}-smb-creds
+      namespace: default
